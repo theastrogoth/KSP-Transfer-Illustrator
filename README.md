@@ -15,9 +15,9 @@ Classes:
   
   
   Functions:
-    Transform3D - applies rotations on a vector to represent it by a new set of input bases.
+  
+  Transform3D - applies rotations on a vector to represent it by a new set of input bases.
     
-    solveKepler - solves Kepler's equation via Newton's method for both elliptical and hyperbolic orbits.
+  solveKepler - solves Kepler's equation via Newton's method for both elliptical and hyperbolic orbits.
     
-    solveLambert - solves lambert's problem for a starting orbit around one body to an ending orbit around another, for a given   
-    start time and flight duration. 
+  solveLambert - solves lambert's problem for a starting orbit around one body to an ending orbit around another, for a given start time and flight duration. 
