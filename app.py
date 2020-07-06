@@ -17,8 +17,6 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
-server = app.server
-
 #%% read solar system data
 infile = open('kerbol_system.json','r')
 kerbol_system = jsonpickle.decode(infile.read())
@@ -84,9 +82,6 @@ def fade_color(color, div = 2):
 
 def add_orbit(figure, orb, times, dateFormat, 
               color = (255,255,255), name = '', style = 'solid', fade = True):
-    """
-    
-    """
     
     if fade:
         fadedColor = fade_color(color)
@@ -130,9 +125,6 @@ def add_orbit(figure, orb, times, dateFormat,
     return maxVal
 
 def add_primary(figure, bd):
-    """
-    
-    """
     
     figure.add_trace(go.Scatter3d(
                                   x = np.array([0]),
@@ -148,9 +140,7 @@ def add_primary(figure, bd):
                                   ))
     
 def add_transfer_phase_angle(figure, transfer, r = None):
-    """
     
-    """
     if r is None:
         r = 1.5*transfer.transferOrbit.a
     
@@ -216,9 +206,7 @@ def add_transfer_phase_angle(figure, transfer, r = None):
         )
 
 def add_ejection_angle(figure, transfer, r = None):
-    """
     
-    """
     if not (transfer.ejectionBurnAngle is None):
         if r is None:
             r =  1.5*transfer.startOrbit.a
@@ -270,9 +258,6 @@ def add_ejection_angle(figure, transfer, r = None):
         )
 
 def add_prograde_trace(figure, transfer, times):
-    """
-    
-    """
     
     color = transfer.startOrbit.prim.color
     
@@ -732,7 +717,7 @@ def update_porkchop_data(nClicks, system, dateFormat,
     # prepare porkchop table
     porkTable = PorkchopTable(sOrb, eOrb, transferType, noInsertion,
                               None, minStartTime, maxStartTime, 
-                              minFlightTime, maxFlightTime, 21, 21)
+                              minFlightTime, maxFlightTime, 26, 26)
     
     return jsonpickle.encode(porkTable)
 
@@ -916,7 +901,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
         "{:.1f}".format(planeDepartureDV[2]) +                              \
         ' m/s normal';
     arrivalDVString = '**Arrival Burn:** ' +                                \
-        "{:.1f}".format(chosenTransfer.insertionDV) + ' m/s';
+        "{:.1f}".format(norm(chosenTransfer.insertionDV)) + ' m/s';
     transferOrbitString = '**Transfer Orbit:**\n' +                         \
         str(chosenTransfer.transferOrbit);
     # plane change details
@@ -1023,6 +1008,10 @@ def update_transfer_plot(chosenTransfer, dateFormat):
                             add_orbit(fig, chosenTransfer.transferOrbitPC,  \
                                       trPCTimes, dateFormat,                \
                                       name = 'Transfer (plane change)'));
+    
+    if (chosenTransfer.endOrbit.prim == chosenTransfer.transferOrbit.prim):
+        add_orbit(fig, chosenTransfer.endOrbit, bdTimes, dateFormat,        \
+                  name = 'Target');
     
     for bd in chosenTransfer.transferOrbit.prim.satellites:
         maxVals = np.append(maxVals,
@@ -1156,5 +1145,5 @@ def update_ejection_plot(chosen_transfer, dateFormat):
     return fig
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False)
 

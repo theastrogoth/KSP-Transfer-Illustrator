@@ -75,7 +75,6 @@ class PorkchopTable:
         """
         
         """
-        
         deltaVTable = np.zeros((self.flightTimeSize,self.startTimeSize))
         
         for xx, flightTime in enumerate(self.flightTimes, start=0):

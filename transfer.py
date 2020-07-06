@@ -588,4 +588,4 @@ class Transfer:
         """
         
         return norm(self.ejectionDV) + norm(self.planeChangeDV) +           \
-            self.insertionDV
+            norm(self.insertionDV)
