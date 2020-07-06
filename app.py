@@ -365,8 +365,9 @@ app.layout = html.Div(className='row', children=[
                               type='number'),
                     dcc.Checklist(
                         id = 'noInsertion-checklist',
+                        value = [],
                         options=[
-                            {'label': 'No insertion burn', 'value': True},
+                            {'label': 'No insertion burn', 'value': 'True'},
                             ],
                         ),
                     html.Label('Transfer Type'),
@@ -691,6 +692,7 @@ def update_porkchop_data(nClicks, system, dateFormat,
     # return empty plot on page load
     if nClicks == 0:
         return dash.no_update
+    
     # prepare starting and ending orbits
     system = jsonpickle.decode(system)
     sBody = [x for x in system if x.name == startBodyName][0]
@@ -721,8 +723,11 @@ def update_porkchop_data(nClicks, system, dateFormat,
     else:
         maxFlightTime = None
     
-    if noInsertion is None:
+    # change noInsertion to a boolean
+    if not noInsertion:
         noInsertion = False
+    else:
+        noInsertion = True
     
     # prepare porkchop table
     porkTable = PorkchopTable(sOrb, eOrb, transferType, noInsertion,
@@ -907,9 +912,9 @@ def update_transfer_details(chosenTransfer, dateFormat):
                         chosenTransfer.ejectionDV)
     departureDVString = '**Departure Burn:** ' +                            \
         "{:.1f}".format(norm([planeDepartureDV[0],planeDepartureDV[1]])) +  \
-        'm/s prograde, ' +                                                  \
+        ' m/s prograde, ' +                                                 \
         "{:.1f}".format(planeDepartureDV[2]) +                              \
-        'm/s normal';
+        ' m/s normal';
     arrivalDVString = '**Arrival Burn:** ' +                                \
         "{:.1f}".format(chosenTransfer.insertionDV) + ' m/s';
     transferOrbitString = '**Transfer Orbit:**\n' +                         \
@@ -1151,5 +1156,5 @@ def update_ejection_plot(chosen_transfer, dateFormat):
     return fig
 
 if __name__ == '__main__':
-    app.run_server(debug=False)
+    app.run_server(debug=True)
 
