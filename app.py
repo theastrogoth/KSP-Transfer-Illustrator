@@ -3,17 +3,15 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
-import pickle
+import plotly.graph_objects as go
 import jsonpickle
 import math
 import numpy as np
 from numpy.linalg import norm
-from copy import copy
 from orbit import Orbit
 from body import Body
 from transfer import Transfer
 from prktable import PorkchopTable
-import plotly.graph_objects as go
 #%% initialize app?
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -21,10 +19,9 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 #%% read solar system data
-infile = open('kerbol_system','rb')
-kerbol_system = pickle.load(infile)
+infile = open('kerbol_system.json','r')
+kerbol_system = jsonpickle.decode(infile.read())
 infile.close
-kerbol_system[0].orb.prim = kerbol_system[0]
 
 #%% prepare solar system dictionaries
 start_bodies = []
