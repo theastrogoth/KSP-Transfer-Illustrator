@@ -308,7 +308,7 @@ app.layout = html.Div(className='row', children=[
                         'Once a Porkchop plot has been generated, you can '
                         'click anywhere in the plot to view information about '
                         'the transfer with the corresponding start time and '
-                        'flight duration. The trajection plots can be rotated '
+                        'flight duration. The Orbit plots can be rotated '
                         'and zoomed in/out. Plotted orbits have hover info '
                         'showing the radius of the orbit and time at each '
                         'position.'
