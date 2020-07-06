@@ -301,7 +301,17 @@ app.layout = html.Div(className='row', children=[
                     html.P(
                         'Select the details of the transfer in the '
                         'Mission Parameters tab. Custom orbits can be '
-                        'entered in the Advanced Settings tab. '
+                        'entered in the Advanced Settings tab. Press the '
+                        '"Plot!" button to generate a Porkchop plot.'
+                        ),
+                    html.P(
+                        'Once a Porkchop plot has been generated, you can '
+                        'click anywhere in the plot to view information about '
+                        'the transfer with the corresponding start time and '
+                        'flight duration. The trajection plots can be rotated '
+                        'and zoomed in/out. Plotted orbits have hover info '
+                        'showing the radius of the orbit and time at each '
+                        'position.'
                         ),
                     html.P(
                         'Due to the limits of Heroku, there is a very coarse '
