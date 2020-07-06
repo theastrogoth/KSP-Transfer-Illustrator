@@ -12,11 +12,12 @@ from orbit import Orbit
 from body import Body
 from transfer import Transfer
 from prktable import PorkchopTable
-#%% initialize app?
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+
+server = app.server
 
 #%% read solar system data
 infile = open('kerbol_system.json','r')
@@ -294,7 +295,8 @@ def add_prograde_trace(figure, transfer, times):
         showlegend = False,
         ))
 
-#%% set up app
+#%% app layout
+
 app.layout = html.Div(className='row', children=[
     html.Div(className='four columns', children=[
         dcc.Tabs(id='tabs', value='instruct', children=[
