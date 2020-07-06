@@ -17,6 +17,8 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
+server = app.server
+
 #%% read solar system data
 infile = open('kerbol_system.json','r')
 kerbol_system = jsonpickle.decode(infile.read())
@@ -295,12 +297,29 @@ app.layout = html.Div(className='row', children=[
                         'optimal departure and arrival dates for transfers '
                         'between celestial bodies, and visualize ejection '
                         'and transfer orbits. '
-                    ),
+                        ),
                     html.P(
                         'Select the details of the transfer in the '
                         'Mission Parameters tab. Custom orbits can be '
                         'entered in the Advanced Settings tab. '
-                            )
+                        ),
+                    html.P(
+                        'Due to the limits of Heroku, there is a very coarse '
+                        'sampling of start/flight times in the Porkchop plot. '
+                        'To improve control of transfer selection or ensure '
+                        'you have the best start/flight times, adjust the '
+                        'range of times in the Advanced Settings tab to '
+                        'zoom in on a region of interest.'
+                        ),
+                    html.P(
+                        'I plan on improving this as I figure out better ways '
+                        'to deploy this as a web app. Please leave feedback '
+                        'about any bugs you encouter or suggestions you have '
+                        'on the GitHub repository for this project:'
+                        ),
+                    html.A(html.Button('Submit feedback'),
+                     href='https://github.com/theastrogoth/KSP-Transfer-Illustrator/issues'
+                           ),
                     ])
                 ),
             dcc.Tab(
