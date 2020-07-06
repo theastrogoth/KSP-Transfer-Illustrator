@@ -5,6 +5,7 @@ import numpy as np
 from numpy.linalg import norm
 from copy import copy
 from body import Body
+import json
 
 class Orbit:
     """Orbital trajectory defined by Keplerian elements and a primary body.
@@ -17,18 +18,25 @@ class Orbit:
         lan (float): longitude of the ascending node (radians)
         mo (float): mean anomaly (radians) at epoch, t=0 seconds.
         prim (Body): the body at the node (in the middle) of the orbit
+        timeshift (float): relative time in seconds of previous epoch
         
     """
     
     def __init__(self, a=None, ecc=None, inc=None, 
-                 argp=None, lan=None, mo=None, prim=None):
+                 argp=None, lan=None, mo=None, prim=None, timeShift=None):
         self.a = a
         self.ecc = ecc
         self.inc = inc
         self.argp = argp
         self.lan = lan
-        self.mo = mo
         self.prim = prim
+        
+        if timeShift is None:
+            self.mo = mo
+        else:
+            self.mo = self.map_angle(mo - timeShift*2*math.pi               \
+                                     / self.get_period())
+                    
         
     @classmethod
     def from_state_vector(cls,pos,vel,t,primaryBody):
@@ -588,4 +596,16 @@ class Orbit:
         thetaVecPlane = math.atan2(vecPlane[1], vecPlane[0])
         
         return self.map_angle(thetaVecPlane - thetaRPlane)
-        
+    
+    def __str__(self):
+        string = '  Semimajor axis: ' + "{:.1f}".format(self.a) + ' m\n' +  \
+            '  Eccentricity: ' + "{:.3f}".format(self.ecc) + '\n'           \
+            '  Inclination: '+"{:.2f}".format(self.inc*180/math.pi) + '°\n'+\
+            '  Argument of Periapsis: ' +                                   \
+                "{:.2f}".format(self.argp*180/math.pi) + '°\n' +            \
+            '  Longitude of Ascending Node: ' +                             \
+                "{:.2f}".format(self.lan*180/math.pi) + '°\n' +             \
+            '  Mean Anomaly at Epoch: ' +                                   \
+                "{:.3f}".format(self.mo) + ' radians\n' +                   \
+            '  Primary Body: ' + self.prim.name;
+        return string

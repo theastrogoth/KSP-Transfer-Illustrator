@@ -2,18 +2,20 @@
 
 import math
 import numpy as np
+from numpy import linalg as LA
+from copy import copy
 from orbit import Orbit
 from body import Body
 from transfer import Transfer
 
-class PorkchopTable:
+class d:
     """
     
     """
     
-    def __init__(self, startOrbit, endOrbit, transferType = 'ballistic',
-                 ignoreInsertion = False, fixedEndTime = None, 
-                 minStartTime = 0, maxStartTime = None, 
+    def __init__(self, startOrbit, endOrbit, transferType = 'ballistic', 
+                 startInclined = False, ignoreInsertion = False,
+                 endTime = None, minStartTime = 0, maxStartTime = None, 
                  minFlightTime = None, maxFlightTime = None,
                  startTimeSize = 101, flightTimeSize = 101):
         """
@@ -23,8 +25,9 @@ class PorkchopTable:
         self.startOrbit = startOrbit
         self.endOrbit = endOrbit
         self.transferType = transferType
+        self.startInclined = startInclined
         self.ignoreInsertion = ignoreInsertion
-        self.fixedEndTime = fixedEndTime
+        self.endTime = endTime
         self.minStartTime = minStartTime
         self.startTimeSize = startTimeSize
         self.flightTimeSize = flightTimeSize
@@ -42,12 +45,12 @@ class PorkchopTable:
             endPeriod = endOrbit.prim.orb.get_period()
         
         if maxStartTime is None:
-            self.maxStartTime = minStartTime + 2 * min(startPeriod,endPeriod)
+            self.maxStartTime = minStartTime + 2 * startPeriod
         else:
             self.maxStartTime = maxStartTime
             
         if minFlightTime is None:
-            self.minFlightTime = math.sqrt((startPeriod+endPeriod)**2)/8
+            self.minFlightTime = math.sqrt((startPeriod+endPeriod)**2)/12
         else:
             self.minFlightTime = minFlightTime
             
@@ -55,18 +58,9 @@ class PorkchopTable:
             self.maxFlightTime = self.minFlightTime * 4
         else:
             self.maxFlightTime = maxFlightTime
-            
-        self.startTimes = np.linspace(self.minStartTime,                    \
-                                      self.maxStartTime,                    \
-                                      num = self.startTimeSize);
-        self.flightTimes = np.linspace(self.minFlightTime,                  \
-                                       self.maxFlightTime,                  \
-                                       num = self.flightTimeSize)
         
         # The attributes defined here will be filled in with methods
         self.deltaV = None
-        
-        
         
         self.fill_table()
     
@@ -76,10 +70,17 @@ class PorkchopTable:
         
         """
         
-        deltaVTable = np.zeros((self.flightTimeSize,self.startTimeSize))
+        startTimes = np.linspace(self.minStartTime,                         \
+                                 self.maxStartTime,                         \
+                                 num = self.startTimeSize);
+        flightTimes = np.linspace(self.minFlightTime,                       \
+                                  self.maxFlightTime,                       \
+                                  num = self.flightTimeSize)
         
-        for xx, flightTime in enumerate(self.flightTimes, start=0):
-            for yy, startTime in enumerate(self.startTimes, start=0):
+        deltaVTable = np.zeros((self.startTimeSize,self.flightTimeSize))
+        
+        for xx, startTime in enumerate(startTimes, start=0):
+            for yy, flightTime in enumerate(flightTimes, start=0):
                 deltaVTable[xx][yy] =                                       \
                     self.get_chosen_transfer(startTime, flightTime)         \
                         .get_total_delta_V()
@@ -88,15 +89,18 @@ class PorkchopTable:
     
     
     def get_best_transfer(self):
-        """
-        
-        """
-        
         minDV = np.nanmin(self.deltaV)
         index = np.where(self.deltaV == minDV)
         
-        startTime = self.startTimes[index[1][0]]
-        flightTime = self.flightTimes[index[0][0]]
+        startTimes = np.linspace(self.minStartTime,                         \
+                                 self.maxStartTime,                         \
+                                 num = self.startTimeSize);
+        flightTimes = np.linspace(self.minFlightTime,                       \
+                                  self.maxFlightTime,                       \
+                                  num = self.flightTimeSize);
+            
+        startTime = startTimes[index[0][0]]
+        flightTime = flightTimes[index[1][0]]
         
         return self.get_chosen_transfer(startTime, flightTime)
     
@@ -104,26 +108,27 @@ class PorkchopTable:
         """
         
         """
-        
         if self.transferType == 'ballistic':
             return Transfer(self.startOrbit, self.endOrbit, startTime,      \
-                            flightTime, False, self.ignoreInsertion,        \
-                            self.fixedEndTime);
+                            flightTime, False, self.startInclined,          \
+                            self.ignoreInsertion, self.endTime);
         
         elif self.transferType == 'plane change':
             return Transfer(self.startOrbit, self.endOrbit, startTime,      \
-                            flightTime, True, self.ignoreInsertion,         \
-                            self.fixedEndTime);
+                            flightTime, True, self.startInclined,           \
+                            self.ignoreInsertion, self.endTime);
         
         elif self.transferType == 'optimal':
             btr = Transfer(self.startOrbit, self.endOrbit,                  \
                                    startTime, flightTime,                   \
-                                   False, self.ignoreInsertion,             \
-                                   self.fixedEndTime);
+                                   False, self.startInclined,               \
+                                   self.ignoreInsertion,                    \
+                                   self.endTime);
             ptr = Transfer(self.startOrbit, self.endOrbit,                  \
                                    startTime, flightTime,                   \
-                                   True, self.ignoreInsertion,              \
-                                   self.fixedEndTime);
+                                   True, self.startInclined,                \
+                                   self.ignoreInsertion,                    \
+                                   self.endTime);
             bdv = btr.get_total_delta_V()
             pdv = ptr.get_total_delta_V()
                     

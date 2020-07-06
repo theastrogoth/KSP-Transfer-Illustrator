@@ -15,10 +15,8 @@ class Transfer:
         startTime (float): time at the beginning of transfer trajectory (s)
         flightTime (float): duration of transfer trajectory (s)
         planeChange (bool): if true, a mid-course plane change is done
-        startInclined (bool): if true, normal component of ejection burn 
-            is ignored. 
         ignoreInsertion (bool): if true, arrival burn is ignored.
-        endTime (float): if given as input, the target position for transfer
+        fixedEndTime (float): if given as input, the target position 
             will be specified by the position of the end orbit at this 
             time (s). Used for setting up successive transfers.
         transferOrbit (Orbit): orbital trajectory between start and end.
@@ -42,8 +40,8 @@ class Transfer:
     """
     
     def __init__(self, startOrbit, endOrbit, startTime, flightTime, 
-                 planeChange = False, startInclined = False,
-                 ignoreInsertion = False, endTime = None):
+                 planeChange = False, ignoreInsertion = False, 
+                 fixedEndTime = None):
         
         # Assign input attributes
         self.startOrbit = startOrbit
@@ -51,9 +49,8 @@ class Transfer:
         self.startTime = startTime
         self.flightTime = flightTime
         self.planeChange = planeChange
-        self.startInclined = startInclined
         self.ignoreInsertion = ignoreInsertion
-        self.endTime = endTime
+        self.fixedEndTime = fixedEndTime
         
         # These attributes get defined here but are filled in with methods
         self.transferOrbit = None
@@ -74,7 +71,7 @@ class Transfer:
     
     @staticmethod
     def solve_lambert(startOrbit, endOrbit, startTime, flightTime,
-                      planeChange = False, endTime = None,
+                      planeChange = False, fixedEndTime = None,
                       tol = 1E-6, maxIt = 200):
         """Solves the Lambert problem to obtain a trajectory to the target.
         
@@ -84,7 +81,7 @@ class Transfer:
             startTime (float): time at the beginning of transfer (s)
             flightTime (float): duration of transfer trajectory (s)
             planeChange (bool): if true, a mid-course plane change occurs
-            endTime (float): if provided, fixes target location to the end
+            fixedEndTime (float): if provided, fixes target location to end
                 orbit's position at this time (s)
             tol (float): the maximum tolerance for iteration termination
             maxIt (int): the maximum number of iterations before breaking
@@ -103,11 +100,11 @@ class Transfer:
         rStart = startOrbit.get_state_vector(startTime)[0]
         
         # Adjust end position based on inputs
-        if endTime is None:
+        if fixedEndTime is None:
             rEnd = endOrbit.get_state_vector(startTime + flightTime)[0]
         else:
             # Choose the end position at a particular point in the orbit
-            rEnd = endOrbit.get_state_vector(endTime)[0]
+            rEnd = endOrbit.get_state_vector(fixedEndTime)[0]
         if planeChange:
             # Rotate the target orbit to be coplanar with the starting one
             rEnd = startOrbit.from_primary_to_orbit_bases(rEnd)
@@ -209,13 +206,10 @@ class Transfer:
         # transfer orbit must be determined
         if planeChange:
             # Obtain the end position in its original plane
-            if endTime is None:
+            if fixedEndTime is None:
                 rEnd = endOrbit.get_state_vector(startTime+flightTime)[0]
             else:
-                rEnd = endOrbit.get_state_vector(endTime)[0]
-            
-            # Represent the end position in the bases of the start orbit
-            rEnd = startOrbit.from_primary_to_orbit_bases(rEnd)
+                rEnd = endOrbit.get_state_vector(fixedEndTime)[0]
             
             # Get angle in the orbital plane between start and end
             transferAngle =                                                 \
@@ -239,7 +233,10 @@ class Transfer:
             vPCiPlane = transferOrbit.from_primary_to_orbit_bases(vPCi)
             
             # Calculate the inclination change needed for the maneuver
-            nf = np.cross(rPC,rEnd)     # normal vector to plane after burn
+            rPCPlane = transferOrbit.from_primary_to_orbit_bases(rPC)
+            rEndPlane = transferOrbit.from_primary_to_orbit_bases(rEnd)
+            nf = np.cross(rPCPlane,rEndPlane)
+                # normal vector to plane after burn
             incPC = math.acos(nf[2] / norm(nf))
             
             # Rotate velocity vector prior to burn to get vector after burn
@@ -278,7 +275,7 @@ class Transfer:
                     self.solve_lambert(self.startOrbit,                     \
                                        self.endOrbit,                       \
                                        self.startTime, self.flightTime,     \
-                                       self.planeChange, self.endTime);
+                                       self.planeChange, self.fixedEndTime);
             
             # Get departure burn delta v
             vStart = self.startOrbit.get_state_vector(self.startTime)[1]
@@ -311,7 +308,7 @@ class Transfer:
                     self.solve_lambert(self.startOrbit.prim.orb,            \
                                        self.endOrbit,                       \
                                        self.startTime, self.flightTime,     \
-                                       self.planeChange, self.endTime);
+                                       self.planeChange, self.fixedEndTime);
             
             self.get_ejection_details()
             
@@ -342,7 +339,7 @@ class Transfer:
                     self.solve_lambert(self.startOrbit,                     \
                                        self.endOrbit.prim.orb,              \
                                        self.startTime, self.flightTime,     \
-                                       self.planeChange, self.endTime);
+                                       self.planeChange, self.fixedEndTime);
             
             if not self.ignoreInsertion: self.get_insertion_details()
             
@@ -366,7 +363,7 @@ class Transfer:
                     self.solve_lambert(self.startOrbit.prim.orb,            \
                                        self.endOrbit.prim.orb,              \
                                        self.startTime, self.flightTime,     \
-                                       self.planeChange, self.endTime);
+                                       self.planeChange, self.fixedEndTime);
             
             self.get_ejection_details()
             if not self.ignoreInsertion: self.get_insertion_details()
@@ -405,7 +402,11 @@ class Transfer:
         # Describe positions at the SOI escape in the hyperbolic
         # escape trajectory's orbital plane
         # true anomaly at escape
-        thetaEscape = math.acos(1/e * (a*(1-e**2)/rEscape - 1))
+        try:
+            thetaEscape = math.acos(1/e * (a*(1-e**2)/rEscape - 1))
+        except ValueError:
+            thetaEscape = math.acos(
+                math.copysign(1, 1/e * (a*(1-e**2)/rEscape - 1)))
         # flight path angle at escape
         phiEscape = math.atan(e*math.sin(thetaEscape) /                     \
                               (1+e*math.cos(thetaEscape)));
@@ -415,18 +416,17 @@ class Transfer:
                       math.sin(thetaEscape + math.pi/2 - phiEscape),        \
                       0]);
         
-        # If the parking orbit should be at the same inclination as the 
-        # ejection trajectory, match its basis vectors to the ejection
-        if self.startInclined:
-            Xo = np.array([1,0,0])  # points to periapsis
-            Yo = np.array([0,1,0])  # points with velocity (at periapsis)
-            Zo = np.array([0,0,1])  # points normal to orbital plane
-        else:
-            Xo, Yo, Zo = self.startOrbit.get_basis_vectors()
+        # start orbit basis vectors
+        Xo, Yo, Zo = self.startOrbit.get_basis_vectors()
         
-        # post-burn position and velocity vectors at periapsis
-        roVec = ro * Xo
-        voVec = vo * Yo
+        # post-burn position and velocity vectors at periapsis, in the orbit's
+        # reference bases
+        roVec = self.startOrbit.from_primary_to_orbit_bases(ro * Xo)
+        voVec = self.startOrbit.from_primary_to_orbit_bases(vo * Yo)
+        
+        # Reperesent the escape velocity in the orbital reference bases
+        vRel = self.startOrbit.from_primary_to_orbit_bases(vRel)
+        vEscape = self.startOrbit.from_primary_to_orbit_bases(vEscape)
         
         # Rotate the ejection trajector to match the desired escape velocity
         # An assumption is made that the periapsis lies in the primary body's
@@ -450,30 +450,32 @@ class Transfer:
         roVec = np.matmul(R2, np.matmul(R1, roVec))
         voVec = np.matmul(R2, np.matmul(R1, voVec))
         
-        # If desired, rotate the parking orbit's normal vector to match
-        # the ejection trajectory
-        if self.startInclined:
-            Zo = np.matmul(R2, np.matmul(R1,Zo))
+        # Represent periapsis state vector in primary bases
+        roVec = self.startOrbit.from_orbit_to_primary_bases(roVec)
+        voVec = self.startOrbit.from_orbit_to_primary_bases(voVec)
         
         # Get burn vector
         vPark = np.cross(Zo,roVec)
         vPark = math.sqrt(mu/ro) * vPark/norm(vPark)
         self.ejectionDV = voVec - vPark;
         
-        # Get a version of the ejection trajectory, then adjust so that the
-        # mean anomaly at epoch is compatible with the transfer start time
-        timeShiftedEjection = Orbit.from_state_vector(roVec, voVec, 0,      \
-                                                      self.startOrbit.prim);
-        hypAnomEscape = math.copysign(                                      \
-                            math.acosh((math.cos(thetaEscape)+e) /          \
-                                   (1 + e*math.cos(thetaEscape))),          \
-                                       thetaEscape);
-        dMeanAnom = e*math.sinh(hypAnomEscape) - hypAnomEscape -            \
-                    timeShiftedEjection.mo;
+        # adjust so that the mean anomaly at epoch is compatible with the 
+        # transfer start time
+        if e < 1:
+            # elliptical case
+            eccAnomEscape = 2*math.atan(math.tan(thetaEscape/2) /           \
+                                  math.sqrt((1+e) / (1-e)))
+            dMeanAnom = eccAnomEscape - e*math.sin(eccAnomEscape)
+        else:
+            # hyperbolic case
+            hypAnomEscape = math.copysign(                                  \
+                                math.acosh((math.cos(thetaEscape)+e) /      \
+                                       (1 + e*math.cos(thetaEscape))),      \
+                                           thetaEscape);
+            dMeanAnom = e*math.sinh(hypAnomEscape)
         
         # Add the correct ejection trajectory and duration to the transfer
-        self.ejectionDT = dMeanAnom / (2*math.pi) *                         \
-            timeShiftedEjection.get_period()
+        self.ejectionDT = abs(dMeanAnom * math.sqrt((abs(a))**3/mu))
         self.ejectionTrajectory =                                           \
             Orbit.from_state_vector(roVec, voVec,                           \
                                     self.get_departure_burn_time(),         \
@@ -527,12 +529,25 @@ class Transfer:
         # Get time interval between encounter and burn 
         e = math.sqrt(1+2*(vo**2/2 - mu/ro) * ro**2 * vo**2 / mu**2)
         a = 1 / (2/ro - vo**2/mu)
-        thetaEnc = -math.acos(1/e * (a*(1-e**2)/rEnc - 1))
-        hypAnomEnc = -math.acosh((math.cos(thetaEnc)+e) /                   \
-                                   (1 + e*math.cos(thetaEnc)));
-        dMeanAnom = e*math.sinh(hypAnomEnc) - hypAnomEnc
+        try:
+            thetaEnc = -math.acos(1/e * (a*(1-e**2)/rEnc - 1))
+        except ValueError:
+            thetaEnc = -math.acos(
+                math.copysign(1, 1/e * (a*(1-e**2)/rEnc - 1)))
+        if e < 1:
+            # elliptical case
+            eccAnomEnc = 2*math.atan(math.tan(thetaEnc/2) /                 \
+                                  math.sqrt((1+e) / (1-e)))
+            dMeanAnom = eccAnomEnc - e*math.sin(eccAnomEnc)
+        else:
+            # hyperbolic case
+            hypAnomEnc = math.copysign(                                     \
+                                math.acosh((math.cos(thetaEnc)+e) /         \
+                                       (1 + e*math.cos(thetaEnc))),         \
+                                           thetaEnc);
+            dMeanAnom = e*math.sinh(hypAnomEnc) - hypAnomEnc
         
-        self.insertionDT = abs(dMeanAnom * math.sqrt((-a)**3/mu))
+        self.insertionDT = abs(dMeanAnom * math.sqrt((abs(a))**3/mu))
     
     
     def get_departure_burn_time(self):
