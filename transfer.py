@@ -374,7 +374,12 @@ class Transfer:
                     self.get_departure_burn_time(),                         \
                     self.endOrbit.prim.orb.get_state_vector(                \
                         self.get_departure_burn_time())[0]);
-    
+        
+        # Adjust phase angle to be within the range [-pi, pi]
+        if self.phaseAngle < -math.pi:
+            self.phaseAngle = self.phaseAngle + 2*math.pi
+        elif self.phaseAngle > math.pi:
+            self.phaseAngle = self.phaseAngle - 2*math.pi
     
     def get_ejection_details(self):
         """Get ejection trajectory with burn details."""
@@ -478,6 +483,12 @@ class Transfer:
         self.ejectionDT = abs(dMeanAnom * math.sqrt((abs(a))**3/mu))
         self.ejectionTrajectory =                                           \
             Orbit.from_state_vector(roVec, voVec,                           \
+                                    self.get_departure_burn_time(),         \
+                                    self.startOrbit.prim);
+        
+        # Reset start orbit to match departure burn timing
+        self.startOrbit =                                                   \
+            Orbit.from_state_vector(roVec,vPark,                            \
                                     self.get_departure_burn_time(),         \
                                     self.startOrbit.prim);
         

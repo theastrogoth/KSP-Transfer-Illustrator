@@ -7,7 +7,27 @@ from body import Body
 from transfer import Transfer
 
 class PorkchopTable:
-    """
+    """Table of delta v values for transfers between the specified orbits.
+    
+    Attributes:
+        startOrbit (Orbit): orbit prior to departure burns
+        endOrbit (Orbit): orbit following arrival burns
+        transferType (string): specifies whether the transfer is ballistic,
+            has a plane change maneuver, or is the "cheaper" of the two
+        ignoreInsertion (bool): if true, arrival burn is ignored.
+        fixedEndTime (float): if given as input, the target position 
+            will be specified by the position of the end orbit at this 
+            time (s). Used for setting up successive transfers.
+        minStartTime (float): earliest time at the beginning of transfer 
+            trajectory (s)
+        minStartTime (float): latest time at the beginning of transfer 
+            trajectory (s)
+        minFlightTime (float): shortest duration of transfer trajectory (s)
+        maxFlightTime (float): longest duration of transfer trajectory (s)
+        startTimeSize (int): number of samples taken on the start time axis
+        flightTimeSize (int): number of samples taken on the flight time axis
+        deltaV: a table of values with the sum of the magnitue of all burn 
+            maneuvers (m/s) at each choice of start and flight times
     
     """
     
@@ -16,9 +36,6 @@ class PorkchopTable:
                  minStartTime = 0, maxStartTime = None, 
                  minFlightTime = None, maxFlightTime = None,
                  startTimeSize = 101, flightTimeSize = 101):
-        """
-        
-        """
         
         self.startOrbit = startOrbit
         self.endOrbit = endOrbit
@@ -72,9 +89,8 @@ class PorkchopTable:
     
     
     def fill_table(self):
-        """
+        """Calculates the delta v for each choice of start and flight time."""
         
-        """
         deltaVTable = np.zeros((self.flightTimeSize,self.startTimeSize))
         
         for xx, flightTime in enumerate(self.flightTimes, start=0):
@@ -86,10 +102,12 @@ class PorkchopTable:
         self.deltaV = deltaVTable
     
     
+    # def get_ejection_delta_v(self, vRel):
+    #     ejectionInc = vRel
+    
+    
     def get_best_transfer(self):
-        """
-        
-        """
+        """Returns the transfer with the lowest delta V among sampled points."""
         
         minDV = np.nanmin(self.deltaV)
         index = np.where(self.deltaV == minDV)
@@ -100,8 +118,14 @@ class PorkchopTable:
         return self.get_chosen_transfer(startTime, flightTime)
     
     def get_chosen_transfer (self, startTime, flightTime):
-        """
+        """Returns the transfer with the specified start and flight times.
         
+        Arguments:
+            startTime (float): time in seconds since epoch of transfer start
+            flightTIme (float): time in seconds of transfer duration
+            
+        Returns:
+            The transfer at with the specified start and flight times
         """
         
         if self.transferType == 'ballistic':

@@ -152,8 +152,7 @@ def add_transfer_phase_angle(figure, transfer, r = None):
             transfer.get_departure_burn_time(),                             \
             np.array([1,0,0]));
         endAngle = startAngle + transfer.phaseAngle
-        numPoints = abs(math.ceil((endAngle-startAngle)/math.pi*50))
-        arcAngles = np.linspace(startAngle, endAngle,numPoints)
+        arcAngles = np.linspace(startAngle, endAngle, 101)
         arcPos = r * np.array([
             np.cos(arcAngles),
             np.sin(arcAngles),
@@ -165,8 +164,7 @@ def add_transfer_phase_angle(figure, transfer, r = None):
             transfer.get_departure_burn_time(),                             \
             np.array([1,0,0]));
         endAngle = startAngle + transfer.phaseAngle
-        numPoints = math.ceil((endAngle-startAngle)/math.pi*50)
-        arcAngles = np.linspace(startAngle, endAngle,numPoints)
+        arcAngles = np.linspace(startAngle, endAngle, 101)
         arcPos = r * np.array([
             np.cos(arcAngles),
             np.sin(arcAngles),
@@ -217,8 +215,7 @@ def add_ejection_angle(figure, transfer, r = None):
                 transfer.get_departure_burn_time())[0])
         startAngle = math.atan2(rBurn[1],rBurn[0])
         endAngle = startAngle - transfer.ejectionBurnAngle
-        numPoints = abs(math.ceil((endAngle-startAngle)/math.pi*50))
-        arcAngles =  np.linspace(startAngle, endAngle, numPoints)
+        arcAngles =  np.linspace(startAngle, endAngle, 101)
         arcPos = r * np.array([
             np.cos(arcAngles),
             np.sin(arcAngles),
@@ -746,7 +743,7 @@ def update_porkchop_data(nClicks, system, dateFormat,
     # prepare porkchop table
     porkTable = PorkchopTable(sOrb, eOrb, transferType, noInsertion,
                               None, minStartTime, maxStartTime, 
-                              minFlightTime, maxFlightTime, 26, 26)
+                              minFlightTime, maxFlightTime, 31, 31)
     
     return jsonpickle.encode(porkTable)
 
@@ -1014,24 +1011,24 @@ def update_transfer_plot(chosenTransfer, dateFormat):
     if chosenTransfer is None:
         return fig
     chosenTransfer = jsonpickle.decode(chosenTransfer)
-    bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(),         \
-                          chosenTransfer.startTime +                        \
-                          chosenTransfer.flightTime, 501);
+    times = np.linspace(chosenTransfer.get_departure_burn_time(),           \
+                        chosenTransfer.startTime +                          \
+                        chosenTransfer.flightTime, 501);
     if chosenTransfer.planeChange is True:
         trTimes = np.linspace(chosenTransfer.startTime,                     \
-                                chosenTransfer.startTime +                  \
-                                chosenTransfer.planeChangeDT, 501);
+                              chosenTransfer.startTime +                    \
+                              chosenTransfer.planeChangeDT, 501);
         trPCTimes = np.linspace(chosenTransfer.startTime +                  \
                                 chosenTransfer.planeChangeDT,               \
                                 chosenTransfer.startTime +                  \
                                 chosenTransfer.flightTime, 501);
     else:
         trTimes = np.linspace(chosenTransfer.startTime,                     \
-                                chosenTransfer.startTime +                  \
-                                chosenTransfer.flightTime, 501);
+                              chosenTransfer.startTime +                    \
+                              chosenTransfer.flightTime, 501);
     
-    maxVals = [add_orbit(fig, chosenTransfer.transferOrbit, trTimes,
-                          dateFormat, name = 'Transfer')]
+    maxVals = [add_orbit(fig, chosenTransfer.transferOrbit, trTimes,        \
+                         dateFormat, name = 'Transfer')];
     if chosenTransfer.planeChange is True:
         maxVals = np.append(maxVals,
                             add_orbit(fig, chosenTransfer.transferOrbitPC,  \
@@ -1039,10 +1036,21 @@ def update_transfer_plot(chosenTransfer, dateFormat):
                                       name = 'Transfer (plane change)'));
     
     if (chosenTransfer.endOrbit.prim == chosenTransfer.transferOrbit.prim):
-        add_orbit(fig, chosenTransfer.endOrbit, bdTimes, dateFormat,        \
+        add_orbit(fig, chosenTransfer.endOrbit, times, dateFormat,          \
                   name = 'Target');
     
     for bd in chosenTransfer.transferOrbit.prim.satellites:
+        if bd.orb.get_period() <                                            \
+        (chosenTransfer.flightTime + chosenTransfer.ejectionDT):
+            bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
+                                  chosenTransfer.get_departure_burn_time() +\
+                                  bd.orb.get_period(),                      \
+                                  501);
+        else:
+            bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
+                                  chosenTransfer.startTime +                \
+                                  chosenTransfer.flightTime,                \
+                                  501);
         maxVals = np.append(maxVals,
                             add_orbit(fig, bd.orb, bdTimes, dateFormat,
                                       bd.color, bd.name)
@@ -1058,22 +1066,19 @@ def update_transfer_plot(chosenTransfer, dateFormat):
         paper_bgcolor="rgb(50, 50, 50)",
         scene = dict(
             xaxis = dict(nticks = 0, range=[-lim, lim],
-                          backgroundcolor="rgb(50, 50, 50)",
-                          showbackground=True,
+                          showbackground=False,
                           showgrid=False,
                           zerolinecolor="rgb(60, 60, 60)",
                           ticks='',
                           showticklabels=False,),
             yaxis = dict(nticks = 0, range=[-lim, lim],
-                          backgroundcolor="rgb(50, 50, 50)",
-                          showbackground=True,
+                          showbackground=False,
                           showgrid=False,
                           zerolinecolor="rgb(60, 60, 60)",
                           ticks='',
                           showticklabels=False,),
             zaxis = dict(nticks = 0, range=[-lim, lim],
-                          backgroundcolor="rgb(50, 50, 50)",
-                          showbackground=True,
+                          showbackground=False,
                           showgrid=False,
                           zerolinecolor="rgb(60, 60, 60)",
                           ticks='',
@@ -1095,68 +1100,79 @@ def update_transfer_plot(chosenTransfer, dateFormat):
     [Input('transfer-div', 'children'),
      Input('dateFormat-div', 'children')]
     )
-def update_ejection_plot(chosen_transfer, dateFormat):
+def update_ejection_plot(chosenTransfer, dateFormat):
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
-    if chosen_transfer is None:
+    if chosenTransfer is None:
         return fig
     
-    chosen_transfer = jsonpickle.decode(chosen_transfer)
-    if chosen_transfer.ejectionTrajectory is None:
+    chosenTransfer = jsonpickle.decode(chosenTransfer)
+    if chosenTransfer.ejectionTrajectory is None:
         return fig
     
-    parkTimes = np.linspace(chosen_transfer.get_departure_burn_time(),
-                            chosen_transfer.get_departure_burn_time()
-                            + chosen_transfer.startOrbit.get_period(),
-                            101)
+    parkTimes = np.linspace(chosenTransfer.get_departure_burn_time() -      \
+                            chosenTransfer.startOrbit.get_period(),         \
+                            chosenTransfer.get_departure_burn_time(),       \
+                            501);
     
-    ejTimes = np.linspace(chosen_transfer.get_departure_burn_time(),
-                            chosen_transfer.startTime,
-                            1001)
+    ejTimes = np.linspace(chosenTransfer.get_departure_burn_time(),         \
+                          chosenTransfer.startTime,                         \
+                          501);
     
-    maxVals =[add_orbit(fig, chosen_transfer.ejectionTrajectory, ejTimes,
-                        dateFormat, name = 'Ejection')]
+    ejTimesGeom = np.geomspace(1,                                           \
+                               chosenTransfer.ejectionDT,                   \
+                               501) +                                       \
+                  chosenTransfer.get_departure_burn_time() - 1;
     
+    add_orbit(fig, chosenTransfer.ejectionTrajectory, ejTimesGeom,          \
+              dateFormat, name = 'Ejection');
+    maxVals = []
     maxVals = np.append(maxVals,
-                          add_orbit(fig, chosen_transfer.startOrbit, 
+                          add_orbit(fig, chosenTransfer.startOrbit, 
                                     parkTimes, dateFormat,
                                     name = 'Starting Orbit', style = 'dot',
                                     fade = False)
                           )
     
-    for bd in chosen_transfer.ejectionTrajectory.prim.satellites:
+    for bd in chosenTransfer.ejectionTrajectory.prim.satellites:
+        if bd.orb.get_period() < chosenTransfer.ejectionDT:
+            bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
+                                  chosenTransfer.get_departure_burn_time() +\
+                                  bd.orb.get_period(),                      \
+                                  501);
+        else:
+            bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
+                                  chosenTransfer.startTime,                 \
+                                  501);
         maxVals = np.append(maxVals,
-                            add_orbit(fig, bd.orb, ejTimes, dateFormat,
+                            add_orbit(fig, bd.orb, bdTimes, dateFormat,
                                       bd.color, bd.name)
                             )
     
     lim = np.amax(maxVals)*1.25
-    add_ejection_angle(fig, chosen_transfer)
-    add_prograde_trace(fig, chosen_transfer, 
-                       ejTimes - chosen_transfer.ejectionDT/2)
-    add_primary(fig, chosen_transfer.ejectionTrajectory.prim)
+    add_ejection_angle(fig, chosenTransfer)
+    add_prograde_trace(fig, chosenTransfer, 
+                       ejTimes - chosenTransfer.ejectionDT/2)
+    add_primary(fig, chosenTransfer.ejectionTrajectory.prim)
     
     fig.update_layout(
         margin=dict(l=0, r=0, t=15, b=30),
         paper_bgcolor="rgb(50, 50, 50)",
         scene = dict(
             xaxis = dict(nticks = 0, range=[-lim, lim],
-                          backgroundcolor="rgb(50, 50, 50)",
-                          showbackground=True,
+                          showbackground=False,
                           showgrid=False,
                           zerolinecolor="rgb(60, 60, 60)",
                           ticks='',
                           showticklabels=False,),
             yaxis = dict(nticks = 0, range=[-lim, lim],
-                          backgroundcolor="rgb(50, 50, 50)",
-                          showbackground=True,
+                          showbackground=False,
                           showgrid=False,
                           zerolinecolor="rgb(60, 60, 60)",
                           ticks='',
                           showticklabels=False,),
             zaxis = dict(nticks = 0, range=[-lim, lim],
-                          backgroundcolor="rgb(50, 50, 50)",
-                          showbackground=True,
+                          showbackground=False,
                           showgrid=False,
                           zerolinecolor="rgb(60, 60, 60)",
                           ticks='',
@@ -1165,9 +1181,9 @@ def update_ejection_plot(chosen_transfer, dateFormat):
             yaxis_title='',
             zaxis_title='',
             camera = dict(
-                eye = dict( x=(1.5*chosen_transfer.startOrbit.a/lim),
-                            y=(1.5*chosen_transfer.startOrbit.a/lim),
-                            z=(1.5*chosen_transfer.startOrbit.a/lim))
+                eye = dict( x=(1.5*chosenTransfer.startOrbit.a/lim),
+                            y=(1.5*chosenTransfer.startOrbit.a/lim),
+                            z=(1.5*chosenTransfer.startOrbit.a/lim))
                 )
             )
         )
@@ -1175,4 +1191,3 @@ def update_ejection_plot(chosen_transfer, dateFormat):
 
 if __name__ == '__main__':
     app.run_server(debug=False)
-
