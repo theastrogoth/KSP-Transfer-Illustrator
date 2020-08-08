@@ -1051,14 +1051,27 @@ def update_transfer_details(chosenTransfer, dateFormat):
     totalDVString = '**Total Δv:** ' +                                      \
         "{:.1f}".format(chosenTransfer.get_total_delta_V()) + ' m/s';
     planeDepartureDV=chosenTransfer.startOrbit.from_primary_to_orbit_bases( \
-                        chosenTransfer.ejectionDV)
+                        chosenTransfer.ejectionDV);
+    if chosenTransfer.endOrbit.prim == chosenTransfer.transferOrbit.prim:
+        if chosenTransfer.planeChange:
+            planeArrivalDV=chosenTransfer.transferOrbitPC                   \
+                .from_primary_to_orbit_bases(chosenTransfer.insertionDV);
+        else:
+            planeArrivalDV=chosenTransfer.transferOrbit                     \
+                .from_primary_to_orbit_bases(chosenTransfer.insertionDV);
+    else:
+        planeArrivalDV=chosenTransfer.endOrbit.from_primary_to_orbit_bases( \
+                            chosenTransfer.insertionDV)
     departureDVString = '**Departure Burn:** ' +                            \
         "{:.1f}".format(norm([planeDepartureDV[0],planeDepartureDV[1]])) +  \
         ' m/s prograde, ' +                                                 \
         "{:.1f}".format(planeDepartureDV[2]) +                              \
         ' m/s normal';
     arrivalDVString = '**Arrival Burn:** ' +                                \
-        "{:.1f}".format(norm(chosenTransfer.insertionDV)) + ' m/s';
+        "{:.1f}".format(norm([planeArrivalDV[0],planeArrivalDV[1]])) +      \
+        ' m/s prograde, ' +                                                 \
+        "{:.1f}".format(planeArrivalDV[2]) +                                \
+        ' m/s normal';
     transferOrbitString = '**Transfer Orbit:**\n' +                         \
         str(chosenTransfer.transferOrbit);
     # plane change details

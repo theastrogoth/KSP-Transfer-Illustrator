@@ -509,8 +509,7 @@ class Orbit:
             # Determine second basis through cross product of the others
             Y = np.cross(Z,X)
             Y = Y / norm(Y)
-        
-        return X, Y, Z
+            return X, Y, Z
     
     
     def from_primary_to_orbit_bases(self, vec):
@@ -557,7 +556,7 @@ class Orbit:
                       num = 101, times = None):
         """ Returns an array of position vectors.
             
-        Arguments:
+        Args:
             startTime (float): the earliest time (s)
             endTIme (float): the latest time (s)
             num (int): the total number of positions, sampled evenly between 
