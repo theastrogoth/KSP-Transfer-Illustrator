@@ -18,11 +18,15 @@ external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 server = app.server
+app.title='KSP Transfer Illustrator'
 
 #%% read solar system data
 infile = open('kerbol_system.json','r')
 kerbol_system = jsonpickle.decode(infile.read())
 infile.close
+# infile = open('sol_system.json','r')
+# sol_system = jsonpickle.decode(infile.read())
+# infile.close
 
 #%% prepare solar system dictionaries
 start_bodies = []
@@ -82,7 +86,7 @@ def fade_color(color, div = 2):
     
     return tuple(math.floor(c/2) for c in color)
 
-def add_orbit(figure, orb, times, dateFormat, 
+def add_orbit(figure, orb, times, dateFormat = None, 
               color = (255,255,255), name = '', style = 'solid', fade = True):
     
     if fade:
@@ -90,23 +94,35 @@ def add_orbit(figure, orb, times, dateFormat,
     else:
         fadedColor = color
     
-    day = dateFormat['day']
-    year = dateFormat['year']
-    
-    pos = np.transpose(orb.get_grandparent_positions(times = times))
+    pos = np.transpose(orb.get_reference_positions(times = times))
     maxVal = np.amax(np.absolute(pos))
     
-    figure.add_trace(go.Scatter3d(
-        x = pos[0],
-        y = pos[1],
-        z = pos[2],
-        customdata = np.stack((norm(pos, axis = 0)/1000,
+    if not dateFormat is None:
+        day = dateFormat['day']
+        year = dateFormat['year']
+        
+        cData = np.stack((norm(pos, axis = 0)/1000,
                             np.floor(times/(3600*day*year))+1,
                             np.floor(times%(3600*day*year)/(day*3600)+1),
                             np.floor((times%(3600*day))/3600),
                             np.floor(((times%(3600*day))%3600)/60),
                             np.floor(((times%(3600*day))%3600)%60)),
-                          axis=1),
+                          axis=1);
+        hoverLabel = "r = %{customdata[0]:.4e} km" + "<br>" +\
+                        "Year %{customdata[1]:.0f}, " +\
+                            "Day %{customdata[2]:.0f} " +\
+                                "%{customdata[3]:0>2d}" + ":" +\
+                                    "%{customdata[4]:0>2d}" + ":" +\
+                                        "%{customdata[5]:0>2d}"
+    else:
+        cData = norm(pos, axis = 0)/1000
+        hoverLabel = "r = %{customdata:.4e} km"
+    
+    figure.add_trace(go.Scatter3d(
+        x = pos[0],
+        y = pos[1],
+        z = pos[2],
+        customdata = cData,
         mode = "lines",
         line = dict(
             color = times,
@@ -114,12 +130,7 @@ def add_orbit(figure, orb, times, dateFormat,
                       [1, 'rgb'+str(color)]],
             dash = style
             ),
-        hovertemplate = "r = %{customdata[0]:.4e} km" + "<br>" +\
-                        "Year %{customdata[1]:.0f}, " +\
-                            "Day %{customdata[2]:.0f} " +\
-                                "%{customdata[3]:0>2d}" + ":" +\
-                                    "%{customdata[4]:0>2d}" + ":" +\
-                                        "%{customdata[5]:0>2d}",
+        hovertemplate = hoverLabel,
         name = name,
         showlegend = False,
         ))
@@ -128,19 +139,82 @@ def add_orbit(figure, orb, times, dateFormat,
 
 def add_primary(figure, bd):
     
-    figure.add_trace(go.Scatter3d(
-                                  x = np.array([0]),
-                                  y = np.array([0]),
-                                  z = np.array([0]),
-                                  mode = "markers",
-                                  marker = dict(
-                                      color = 'rgb'+str(bd.color),
-                                      symbol = "circle"),
-                                  name = bd.name,
-                                  showlegend = False,
-                                  hovertemplate = "Central body"
-                                  ))
+    fadedColor = fade_color(bd.color)
     
+    size = 10
+    phi = np.linspace(0, 2*math.pi, size)
+    theta = np.linspace(-math.pi/2, math.pi/2, size)
+    phi, theta = np.meshgrid(phi, theta)
+    
+    x = bd.eqr * np.cos(theta) * np.sin(phi)
+    y = bd.eqr * np.cos(theta) * np.cos(phi)
+    z = bd.eqr * np.sin(theta)
+    
+    figure.add_trace(go.Mesh3d(
+                                x = np.ndarray.flatten(x),
+                                y = np.ndarray.flatten(y),
+                                z = np.ndarray.flatten(z),
+                                alphahull = 0,
+                                color = 'rgb'+str(fadedColor),
+                                opacity = 0.5,
+                                name = bd.name,
+                                showlegend = False,
+                                hovertemplate = "Central body"
+                                    ))
+    
+    # figure.add_trace(go.Scatter3d(
+    #                               x = np.array([0]),
+    #                               y = np.array([0]),
+    #                               z = np.array([0]),
+    #                               mode = "markers",
+    #                               marker = dict(
+    #                                   color = 'rgb'+str(bd.color),
+    #                                   symbol = "circle"),
+    #                               name = bd.name,
+    #                               showlegend = False,
+    #                               hovertemplate = "Central body"
+    #                               ))
+
+def add_body(figure, bd, time, surf = True):
+    
+    fadedColor = fade_color(bd.color)
+    
+    pos = bd.orb.get_state_vector(time)[0]
+    
+    if surf:
+        size = 10
+        phi = np.linspace(0, 2*math.pi, size)
+        theta = np.linspace(-math.pi/2, math.pi/2, size)
+        phi, theta = np.meshgrid(phi, theta)
+        
+        x = bd.eqr * np.cos(theta) * np.sin(phi) + pos[0]
+        y = bd.eqr * np.cos(theta) * np.cos(phi) + pos[1]
+        z = bd.eqr * np.sin(theta) + pos[2]
+        
+        figure.add_trace(go.Mesh3d(
+                                    x = np.ndarray.flatten(x),
+                                    y = np.ndarray.flatten(y),
+                                    z = np.ndarray.flatten(z),
+                                    alphahull = 0,
+                                    color = 'rgb'+str(fadedColor),
+                                    opacity = 0.5,
+                                    showlegend = False,
+                                    hoverinfo = 'skip'
+                                        ))
+    else:    
+        figure.add_trace(go.Scatter3d(
+                                      x = pos[0],
+                                      y = pos[1],
+                                      z = pos[2],
+                                      mode = "markers",
+                                      marker = dict(
+                                          color = 'rgb'+str(fadedColor),
+                                          symbol = "circle"),
+                                      showlegend = False,
+                                      hoverinfo = 'skip'
+                                      ))
+        
+
 def add_transfer_phase_angle(figure, transfer, r = None):
     
     if r is None:
@@ -256,12 +330,12 @@ def add_ejection_angle(figure, transfer, r = None):
             )
         )
 
-def add_prograde_trace(figure, transfer, times):
+def add_prograde_trace(figure, transfer, body, times):
     
-    color = transfer.startOrbit.prim.color
+    color = body.color
     
-    pos = np.transpose(transfer.startOrbit.prim.orb.                        \
-                        get_grandparent_positions(times = times))
+    pos = np.transpose(body.orb.                                            \
+                        get_reference_positions(times = times))
     pos = [dim - dim[int(len(dim)/2)] for dim in pos]
     
     figure.add_trace(go.Scatter3d(
@@ -271,7 +345,7 @@ def add_prograde_trace(figure, transfer, times):
         mode = "lines",
         line = dict(
             color = times,
-            colorscale = [[0, 'rgb'+str(fade_color(color))], 
+            colorscale = [[0, 'rgb'+str(fade_color(color,4))], 
                       [1, 'rgb'+str(color)]],
             ),
         hoverinfo = 'skip',
@@ -374,6 +448,22 @@ app.layout = html.Div(className='row', children=[
                     html.Label('Ending parking altitude (km)'),
                     dcc.Input(id = 'endPark-input', value=100, 
                               type='number'),
+                    dcc.Checklist(
+                        id = 'cheapStartOrbit-checklist',
+                        value = [],
+                        options=[
+                            {'label': 'Cheapest starting orbit',
+                             'value': 'True'},
+                            ],
+                        ),
+                    dcc.Checklist(
+                        id = 'cheapEndOrbit-checklist',
+                        value = ['True'],
+                        options=[
+                            {'label': 'Cheapest ending orbit',
+                             'value': 'True'},
+                            ],
+                        ),
                     dcc.Checklist(
                         id = 'noInsertion-checklist',
                         value = [],
@@ -508,6 +598,10 @@ app.layout = html.Div(className='row', children=[
             ]),
         html.Div([
             html.H3('Selected Transfer Details'),
+            html.Div(id='failedConvergenceWarning-div',
+                     style={'display': 'none'},
+                     children=[
+                         dcc.Markdown(id = 'failedConvergence-markdown')]),
             html.Div(id='transferDetails-div', style={'display': 'none'},
                      children=[
                          dcc.Markdown(id = 'departure-markdown'),
@@ -539,6 +633,8 @@ app.layout = html.Div(className='row', children=[
                          dcc.Markdown(id = 'transferOrbitPC-markdown',
                                       style={"white-space": "pre"}),
                          dcc.Markdown(id = 'ejectionOrbit-markdown',
+                                      style={"white-space": "pre"}),
+                         dcc.Markdown(id = 'insertionOrbit-markdown',
                                       style={"white-space": "pre"})
                          ])
             ])
@@ -558,6 +654,13 @@ app.layout = html.Div(className='row', children=[
                 dcc.Graph(
                     id='ejection-graph',
                     figure = go.Figure(layout = dict(
+                                        xaxis = dict(visible=False),
+                                        yaxis = dict(visible=False)))
+                    ),
+                dcc.Markdown('**Insertion Trajectory**'),
+                dcc.Graph(
+                    id='insertion-graph',
+                    figure = go.Figure(layout =dict(
                                         xaxis = dict(visible=False),
                                         yaxis = dict(visible=False)))
                     ),
@@ -667,6 +770,8 @@ def update_early_start_day(early_start_day2, prev_state):
     [State('system-div','children'),
      State('dateFormat-div','children'),
      State('trType-dropdown','value'),
+     State('cheapStartOrbit-checklist','value'),
+     State('cheapEndOrbit-checklist','value'),
      State('noInsertion-checklist','value'),
      State('startingBody-dropdown','value'),
      State('starta-input','value'),
@@ -692,7 +797,8 @@ def update_early_start_day(early_start_day2, prev_state):
      State('longFlightDays-input','value')]
     )
 def update_porkchop_data(nClicks, system, dateFormat,
-                          transferType, noInsertion,
+                          transferType,
+                          cheapStartOrb, cheapEndOrb, noInsertion,
                           startBodyName, startA, startEcc, startInc,
                           startArgP, startLAN, startMo, startEpoch,
                           endBodyName, endA, endEcc, endInc,
@@ -734,7 +840,15 @@ def update_porkchop_data(nClicks, system, dateFormat,
     else:
         maxFlightTime = None
     
-    # change noInsertion to a boolean
+    # change orbit options from strings to bools
+    if not cheapStartOrb:
+        cheapStartOrb = False
+    else:
+        cheapStartOrb = True
+    if not cheapEndOrb:
+        cheapEndOrb = False
+    else:
+        cheapEndOrb = True
     if not noInsertion:
         noInsertion = False
     else:
@@ -742,7 +856,8 @@ def update_porkchop_data(nClicks, system, dateFormat,
     
     # prepare porkchop table
     porkTable = PorkchopTable(sOrb, eOrb, transferType, noInsertion,
-                              None, minStartTime, maxStartTime, 
+                              cheapStartOrb, cheapEndOrb,
+                              minStartTime, maxStartTime,
                               minFlightTime, maxFlightTime, 31, 31)
     
     return jsonpickle.encode(porkTable)
@@ -763,7 +878,9 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat):
     
     # if the update comes from the porkchop data, get the best transfer
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'porkchop-div':
-        return jsonpickle.encode(porkTable.get_best_transfer())
+        transfer = porkTable.get_best_transfer()
+        transfer.genetic_refine()
+        return jsonpickle.encode(transfer)
     
     # if the update comes from user click data, get the chosen transfer
     elif ctx.triggered[0]['prop_id'].split('.')[0] == 'porkchop-graph':
@@ -773,6 +890,7 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat):
         startTime = startDays * 3600 * day
         flightTime = flightDays * 3600 * day
         transfer = porkTable.get_chosen_transfer (startTime, flightTime)
+        transfer.genetic_refine()
         return jsonpickle.encode(transfer)
 
 @app.callback(
@@ -824,7 +942,7 @@ def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, prevState):
                         colorbar = dict(
                             tickvals = colorVals,
                             ticktext = colorLabels,
-                            title='Total Δv required (m/s)',),
+                            title='Estimated Total Δv (m/s)',),
                         contours_coloring='heatmap',
                         customdata = bs**logdV,
                         hovertemplate = "Δv = " +
@@ -850,7 +968,9 @@ def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, prevState):
     return fig
 
 @app.callback(
-    [Output('transferDetails-div','style'),
+    [Output('failedConvergenceWarning-div','style'),
+     Output('failedConvergence-markdown', 'children'),
+     Output('transferDetails-div','style'),
      Output('departure-markdown','children'),
      Output('arrival-markdown','children'),
      Output('flightTime-markdown','children'),
@@ -868,7 +988,8 @@ def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, prevState):
      Output('encounterTime-markdown','children'),
      Output('transferOrbit-markdown','children'),
      Output('transferOrbitPC-markdown','children'),
-     Output('ejectionOrbit-markdown','children'),],
+     Output('ejectionOrbit-markdown','children'),
+     Output('insertionOrbit-markdown','children')],
     [Input('transfer-div','children'),
      Input('dateFormat-div','children')]
     )
@@ -880,12 +1001,22 @@ def update_transfer_details(chosenTransfer, dateFormat):
                dash.no_update, dash.no_update, dash.no_update,              \
                dash.no_update, dash.no_update, dash.no_update,              \
                dash.no_update, dash.no_update, dash.no_update,              \
+               dash.no_update, dash.no_update, dash.no_update,              \
                dash.no_update;
                
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     # grab day and year formats
     day = dateFormat['day']         # hours per day
     year= dateFormat['year']        # days per year
+    
+    # Failed convergence warning
+    if chosenTransfer.convergenceFail:
+        convergenceFailStyle = None
+        failString = '**Warning: Trajectories are not consistent across ' + \
+            'SOI changes. Solutions are approximate.**';
+    else:
+        convergenceFailStyle = {'display': 'none'}
+        failString  = ''
     
     # transfer trajectory details
     transferStyle = None
@@ -975,7 +1106,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
         escapeTimeString = ''
         ejectionOrbitString = ''
     # insertion details
-    if not chosenTransfer.insertionDT == 0:
+    if not chosenTransfer.insertionTrajectory is None:
         insertionStyle = None
         encounterTime = chosenTransfer.startTime + chosenTransfer.flightTime
         encounterTimeString = '**Arrival SOI Encounter:**\t\tYear ' +       \
@@ -986,17 +1117,22 @@ def update_transfer_details(chosenTransfer, dateFormat):
         str(math.floor((encounterTime%(3600*day))/3600)) + ':' +            \
         str(math.floor(((encounterTime%(3600*day))%3600)/60)) + ':' +       \
         str(math.floor(((encounterTime%(3600*day))%3600)%60));
+        insertionOrbitString = '**Insertion Orbit:**\n' +                   \
+            str(chosenTransfer.insertionTrajectory)
     else:
         insertionStyle = {'display': 'none'}
         encounterTimeString = ''
+        insertionOrbitString = ''
     
     
-    return transferStyle, departureString, arrivalString, flightTimeString, \
+    return convergenceFailStyle, failString,                                \
+            transferStyle, departureString, arrivalString, flightTimeString,\
             phaseString, totalDVString, departureDVString, arrivalDVString, \
             planeChangeStyle, planeChangeDVString, planeChangeTimeString,   \
             ejectionStyle, ejectionAngleString, escapeTimeString,           \
             insertionStyle, encounterTimeString,                            \
-            transferOrbitString, transferOrbitPCString, ejectionOrbitString;
+            transferOrbitString, transferOrbitPCString, ejectionOrbitString,\
+            insertionOrbitString;
             
             
 
@@ -1055,6 +1191,7 @@ def update_transfer_plot(chosenTransfer, dateFormat):
                             add_orbit(fig, bd.orb, bdTimes, dateFormat,
                                       bd.color, bd.name)
                             )
+        add_body(fig, bd, chosenTransfer.get_departure_burn_time())
     
     add_primary(fig, chosenTransfer.transferOrbit.prim)
     lim = np.amax(maxVals)*1.25
@@ -1086,6 +1223,7 @@ def update_transfer_plot(chosenTransfer, dateFormat):
             xaxis_title='',
             yaxis_title='',
             zaxis_title='',
+            aspectratio=dict(x=1, y=1, z=1),
             camera = dict(
                 eye = dict( x=1.5*chosenTransfer.transferOrbit.a/lim,
                             y=1.5*chosenTransfer.transferOrbit.a/lim,
@@ -1126,10 +1264,10 @@ def update_ejection_plot(chosenTransfer, dateFormat):
     
     add_orbit(fig, chosenTransfer.ejectionTrajectory, ejTimesGeom,          \
               dateFormat, name = 'Ejection');
-    maxVals = []
+    maxVals = [10*chosenTransfer.startOrbit.a]
     maxVals = np.append(maxVals,
                           add_orbit(fig, chosenTransfer.startOrbit, 
-                                    parkTimes, dateFormat,
+                                    parkTimes, None,
                                     name = 'Starting Orbit', style = 'dot',
                                     fade = False)
                           )
@@ -1148,10 +1286,14 @@ def update_ejection_plot(chosenTransfer, dateFormat):
                             add_orbit(fig, bd.orb, bdTimes, dateFormat,
                                       bd.color, bd.name)
                             )
+        add_body(fig, bd, chosenTransfer.get_departure_burn_time())
     
     lim = np.amax(maxVals)*1.25
+    if lim < chosenTransfer.startOrbit.a * 2:
+        lim = chosenTransfer.startOrbit.a * 2
+    
     add_ejection_angle(fig, chosenTransfer)
-    add_prograde_trace(fig, chosenTransfer, 
+    add_prograde_trace(fig, chosenTransfer, chosenTransfer.startOrbit.prim,
                        ejTimes - chosenTransfer.ejectionDT/2)
     add_primary(fig, chosenTransfer.ejectionTrajectory.prim)
     
@@ -1180,10 +1322,111 @@ def update_ejection_plot(chosenTransfer, dateFormat):
             xaxis_title='',
             yaxis_title='',
             zaxis_title='',
+            aspectratio=dict(x=1, y=1, z=1),
             camera = dict(
-                eye = dict( x=(1.5*chosenTransfer.startOrbit.a/lim),
-                            y=(1.5*chosenTransfer.startOrbit.a/lim),
-                            z=(1.5*chosenTransfer.startOrbit.a/lim))
+                eye = dict( x=(2.5*chosenTransfer.startOrbit.a/lim),
+                            y=(2.5*chosenTransfer.startOrbit.a/lim),
+                            z=(2.5*chosenTransfer.startOrbit.a/lim))
+                )
+            )
+        )
+    return fig
+
+@app.callback(
+    Output('insertion-graph', 'figure'),
+    [Input('transfer-div', 'children'),
+     Input('dateFormat-div', 'children')]
+    )
+def update_insertion_plot(chosenTransfer, dateFormat):
+    
+    fig = go.Figure(layout = dict(xaxis = dict(visible=False),
+                                  yaxis = dict(visible=False)))
+    if chosenTransfer is None:
+        return fig
+    
+    chosenTransfer = jsonpickle.decode(chosenTransfer)
+    if chosenTransfer.insertionTrajectory is None:
+        return fig
+    
+    encTime = chosenTransfer.startTime + chosenTransfer.flightTime
+    burnTime = chosenTransfer.get_arrival_burn_time()
+    
+    parkTimes = np.linspace(burnTime,                                       \
+                            chosenTransfer.endOrbit.get_period() + burnTime,\
+                            501);
+    
+    inTimes = np.linspace(encTime, burnTime, 501);
+    
+    inTimesGeom = np.geomspace(-chosenTransfer.insertionDT, -1, 501) +      \
+                  burnTime + 1;
+    if chosenTransfer.ignoreInsertion:
+        inTimesGeom = np.append(                                            \
+            inTimesGeom,                                                    \
+            np.geomspace(1,chosenTransfer.insertionDT,501) + burnTime - 1);
+    
+    add_orbit(fig, chosenTransfer.insertionTrajectory, inTimesGeom,          \
+              dateFormat, name = 'Insertion');
+    maxVals = [10*chosenTransfer.endOrbit.a]
+    
+    if not chosenTransfer.ignoreInsertion:
+        maxVals = np.append(maxVals,
+                              add_orbit(fig, chosenTransfer.endOrbit, 
+                                        parkTimes, None,
+                                        name = 'Ending Orbit', style = 'dot',
+                                        fade = False)
+                              )
+    
+    for bd in chosenTransfer.insertionTrajectory.prim.satellites:
+        if bd.orb.get_period() < chosenTransfer.insertionDT:
+            bdTimes = np.linspace(encTime,                                  \
+                                  encTime + bd.orb.get_period(),            \
+                                  501);
+        else:
+            bdTimes = np.linspace(encTime, burnTime, 501);
+        maxVals = np.append(maxVals,
+                            add_orbit(fig, bd.orb, bdTimes, dateFormat,
+                                      bd.color, bd.name)
+                            )
+        add_body(fig, bd, encTime)
+    
+    lim = np.amax(maxVals)*1.25
+    if lim < chosenTransfer.startOrbit.a * 2:
+        lim = chosenTransfer.startOrbit.a * 2
+    
+    add_prograde_trace(fig, chosenTransfer, chosenTransfer.endOrbit.prim,
+                       inTimes - chosenTransfer.insertionDT/2)
+    add_primary(fig, chosenTransfer.insertionTrajectory.prim)
+    
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=15, b=30),
+        paper_bgcolor="rgb(50, 50, 50)",
+        scene = dict(
+            xaxis = dict(nticks = 0, range=[-lim, lim],
+                          showbackground=False,
+                          showgrid=False,
+                          zerolinecolor="rgb(60, 60, 60)",
+                          ticks='',
+                          showticklabels=False,),
+            yaxis = dict(nticks = 0, range=[-lim, lim],
+                          showbackground=False,
+                          showgrid=False,
+                          zerolinecolor="rgb(60, 60, 60)",
+                          ticks='',
+                          showticklabels=False,),
+            zaxis = dict(nticks = 0, range=[-lim, lim],
+                          showbackground=False,
+                          showgrid=False,
+                          zerolinecolor="rgb(60, 60, 60)",
+                          ticks='',
+                          showticklabels=False,),
+            xaxis_title='',
+            yaxis_title='',
+            zaxis_title='',
+            aspectratio=dict(x=1, y=1, z=1),
+            camera = dict(
+                eye = dict( x=(2.5*chosenTransfer.endOrbit.a/lim),
+                            y=(2.5*chosenTransfer.endOrbit.a/lim),
+                            z=(2.5*chosenTransfer.endOrbit.a/lim))
                 )
             )
         )

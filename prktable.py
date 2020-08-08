@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import math
 import numpy as np
 from orbit import Orbit
@@ -15,9 +13,10 @@ class PorkchopTable:
         transferType (string): specifies whether the transfer is ballistic,
             has a plane change maneuver, or is the "cheaper" of the two
         ignoreInsertion (bool): if true, arrival burn is ignored.
-        fixedEndTime (float): if given as input, the target position 
-            will be specified by the position of the end orbit at this 
-            time (s). Used for setting up successive transfers.
+        cheapStartOrb (bool): if true, the only parameter of the starting
+            park orbit used is the semimajor axis
+        cheapEndOrb (bool): if true, the only parameter of the ending park
+            orbit used is the semimajor axis
         minStartTime (float): earliest time at the beginning of transfer 
             trajectory (s)
         minStartTime (float): latest time at the beginning of transfer 
@@ -26,13 +25,16 @@ class PorkchopTable:
         maxFlightTime (float): longest duration of transfer trajectory (s)
         startTimeSize (int): number of samples taken on the start time axis
         flightTimeSize (int): number of samples taken on the flight time axis
+        startTimes (floats): list holding all start times sampled (s)
+        flightTimes (floats): list hold all flight times sampled (s)
         deltaV: a table of values with the sum of the magnitue of all burn 
             maneuvers (m/s) at each choice of start and flight times
     
     """
     
     def __init__(self, startOrbit, endOrbit, transferType = 'ballistic',
-                 ignoreInsertion = False, fixedEndTime = None, 
+                 ignoreInsertion = False,
+                 cheapStartOrb = False, cheapEndOrb = True,
                  minStartTime = 0, maxStartTime = None, 
                  minFlightTime = None, maxFlightTime = None,
                  startTimeSize = 101, flightTimeSize = 101):
@@ -41,7 +43,8 @@ class PorkchopTable:
         self.endOrbit = endOrbit
         self.transferType = transferType
         self.ignoreInsertion = ignoreInsertion
-        self.fixedEndTime = fixedEndTime
+        self.cheapStartOrb = cheapStartOrb
+        self.cheapEndOrb = cheapEndOrb
         self.minStartTime = minStartTime
         self.startTimeSize = startTimeSize
         self.flightTimeSize = flightTimeSize
@@ -95,15 +98,10 @@ class PorkchopTable:
         
         for xx, flightTime in enumerate(self.flightTimes, start=0):
             for yy, startTime in enumerate(self.startTimes, start=0):
-                deltaVTable[xx][yy] =                                       \
-                    self.get_chosen_transfer(startTime, flightTime)         \
-                        .get_total_delta_V()
+                trs = self.get_chosen_transfer(startTime, flightTime)
+                deltaVTable[xx][yy] = trs.get_total_delta_V()
                 
         self.deltaV = deltaVTable
-    
-    
-    # def get_ejection_delta_v(self, vRel):
-    #     ejectionInc = vRel
     
     
     def get_best_transfer(self):
@@ -129,31 +127,33 @@ class PorkchopTable:
         """
         
         if self.transferType == 'ballistic':
-            return Transfer(self.startOrbit, self.endOrbit, startTime,      \
+            trs = Transfer(self.startOrbit, self.endOrbit, startTime,       \
                             flightTime, False, self.ignoreInsertion,        \
-                            self.fixedEndTime);
+                            self.cheapStartOrb, self.cheapEndOrb);
         
         elif self.transferType == 'plane change':
-            return Transfer(self.startOrbit, self.endOrbit, startTime,      \
+            trs = Transfer(self.startOrbit, self.endOrbit, startTime,       \
                             flightTime, True, self.ignoreInsertion,         \
-                            self.fixedEndTime);
+                            self.cheapStartOrb, self.cheapEndOrb);
         
         elif self.transferType == 'optimal':
             btr = Transfer(self.startOrbit, self.endOrbit,                  \
                                    startTime, flightTime,                   \
                                    False, self.ignoreInsertion,             \
-                                   self.fixedEndTime);
+                                   self.cheapStartOrb, self.cheapEndOrb);
             ptr = Transfer(self.startOrbit, self.endOrbit,                  \
                                    startTime, flightTime,                   \
                                    True, self.ignoreInsertion,              \
-                                   self.fixedEndTime);
+                                   self.cheapStartOrb, self.cheapEndOrb);
             bdv = btr.get_total_delta_V()
             pdv = ptr.get_total_delta_V()
                     
             if bdv <= pdv:
-                return btr
+                trs = btr
             else:
-                return ptr
+                trs = ptr
         
         else:
             raise Exception('uncrecognized transfer type')
+        
+        return trs

@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
-
 import math
 import numpy as np
 from numpy.linalg import norm
 from copy import copy
 from body import Body
-import json
 
 class Orbit:
     """Orbital trajectory defined by Keplerian elements and a primary body.
@@ -305,6 +302,24 @@ class Orbit:
         return 2*math.pi * math.sqrt((abs(self.a)**3)/self.prim.mu)
     
     
+    def get_mean_anomaly(self, t):
+        """Returns the mean anomaly of the orbital trajectory at time t.
+        
+        Args:
+            t (float): time (seconds)
+        
+        Returns:
+            mean anomaly (radians)
+        """
+        
+        if t == 0:
+            meanAnom = self.mo
+        else:
+            meanAnom = self.mo + t / (self.get_period()/(2*math.pi))
+            if self.ecc < 1:
+                meanAnom = self.map_angle(meanAnom)
+        return meanAnom
+    
     def get_true_anomaly(self, t):
         """Returns the true anomaly of the orbital trajectory at time t.
         
@@ -315,13 +330,8 @@ class Orbit:
             true anomaly (radians)
         """
         
-        # Calculate mean anomaly at time t
-        if t == 0:
-            meanAnom = self.mo
-        else:
-            meanAnom = self.mo + t / (self.get_period()/(2*math.pi))
-            if self.ecc < 1:
-                meanAnom = self.map_angle(meanAnom)
+        # Get the mean anomaly
+        meanAnom = self.get_mean_anomaly(t)
         
         # Parabolic case
         if self.ecc == 1:
@@ -500,7 +510,11 @@ class Orbit:
             Y = np.cross(Z,X)
             Y = Y / norm(Y)
             
-            return X, Y, Z
+        X = np.array([1, 0, 0])
+        Y = np.array([0, 1, 0])
+        Z = np.array([0, 0, 1])
+        
+        return X, Y, Z
     
     
     def from_primary_to_orbit_bases(self, vec):
@@ -543,9 +557,9 @@ class Orbit:
         return self.rotate_to_bases(rPrim, X, Y, True)
     
     
-    def get_grandparent_positions(self, startTime = None, endTime = None, 
+    def get_reference_positions(self, startTime = None, endTime = None, 
                                   num = 101, times = None):
-        """ Returns an array of position vectors in the grandparent's bases
+        """ Returns an array of position vectors in the reference bases
             
         Arguments:
             startTime (float): the earliest time (s)
@@ -565,10 +579,12 @@ class Orbit:
         
         # get the position vector for each time and add it to array
         for t in times:
-            positions = np.append(positions,
-                                  [self.prim.orb.from_orbit_to_primary_bases(
-                                      self.get_state_vector(t)[0])],
-                                  axis=0)
+            parent = self.prim
+            pos = self.get_state_vector(t)[0]
+            while not parent.orb.prim == parent:
+                pos = parent.orb.from_orbit_to_primary_bases(pos)
+                parent = parent.orb.prim
+            positions = np.append(positions, [pos], axis=0)
         return positions
     
     
@@ -598,14 +614,14 @@ class Orbit:
         return self.map_angle(thetaVecPlane - thetaRPlane)
     
     def __str__(self):
-        string = '  Semimajor axis: ' + "{:.1f}".format(self.a) + ' m\n' +  \
-            '  Eccentricity: ' + "{:.3f}".format(self.ecc) + '\n'           \
-            '  Inclination: '+"{:.2f}".format(self.inc*180/math.pi) + '°\n'+\
+        string = '  Semimajor axis: ' + "{:.5f}".format(self.a) + ' m\n' +  \
+            '  Eccentricity: ' + "{:.9f}".format(self.ecc) + '\n'           \
+            '  Inclination: '+"{:.9f}".format(self.inc*180/math.pi) + '°\n'+\
             '  Argument of Periapsis: ' +                                   \
-                "{:.2f}".format(self.argp*180/math.pi) + '°\n' +            \
+                "{:.9f}".format(self.argp*180/math.pi) + '°\n' +            \
             '  Longitude of Ascending Node: ' +                             \
-                "{:.2f}".format(self.lan*180/math.pi) + '°\n' +             \
+                "{:.9f}".format(self.lan*180/math.pi) + '°\n' +             \
             '  Mean Anomaly at Epoch: ' +                                   \
-                "{:.3f}".format(self.mo) + ' radians\n' +                   \
+                "{:.9f}".format(self.mo) + ' radians\n' +                   \
             '  Primary Body: ' + self.prim.name;
         return string
