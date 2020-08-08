@@ -821,7 +821,7 @@ class Transfer:
         return vec/norm(vec)
     
     
-    def genetic_refine(self, num = 10, tol = 100, maxGen = 200):
+    def genetic_refine(self, num = 10, tol = 1000, maxGen = 100):
         """Genetic algorithm to find start and end positions for Transfer"""
         
         # TO DO: figure out better mutation methods, convergence for high
