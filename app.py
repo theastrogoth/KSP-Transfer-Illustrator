@@ -1049,7 +1049,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
     phaseString = '**Phase Angle:** ' +                                     \
         "{:.2f}".format(chosenTransfer.phaseAngle*180/math.pi) + '°';
     totalDVString = '**Total Δv:** ' +                                      \
-        "{:.1f}".format(chosenTransfer.get_total_delta_V()) + ' m/s';
+        "{:.2f}".format(chosenTransfer.get_total_delta_V()) + ' m/s';
     planeDepartureDV=chosenTransfer.startOrbit.from_primary_to_orbit_bases( \
                         chosenTransfer.ejectionDV);
     if chosenTransfer.endOrbit.prim == chosenTransfer.transferOrbit.prim:
@@ -1063,14 +1063,14 @@ def update_transfer_details(chosenTransfer, dateFormat):
         planeArrivalDV=chosenTransfer.endOrbit.from_primary_to_orbit_bases( \
                             chosenTransfer.insertionDV)
     departureDVString = '**Departure Burn:** ' +                            \
-        "{:.1f}".format(norm([planeDepartureDV[0],planeDepartureDV[1]])) +  \
+        "{:.2f}".format(norm([planeDepartureDV[0],planeDepartureDV[1]])) +  \
         ' m/s prograde, ' +                                                 \
-        "{:.1f}".format(planeDepartureDV[2]) +                              \
+        "{:.2f}".format(planeDepartureDV[2]) +                              \
         ' m/s normal';
     arrivalDVString = '**Arrival Burn:** ' +                                \
-        "{:.1f}".format(norm([planeArrivalDV[0],planeArrivalDV[1]])) +      \
+        "{:.2f}".format(norm([planeArrivalDV[0],planeArrivalDV[1]])) +      \
         ' m/s retrograde, ' +                                                 \
-        "{:.1f}".format(planeArrivalDV[2]) +                                \
+        "{:.2f}".format(planeArrivalDV[2]) +                                \
         ' m/s normal';
     transferOrbitString = '**Transfer Orbit:**\n' +                         \
         str(chosenTransfer.transferOrbit);
@@ -1078,7 +1078,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
     if chosenTransfer.planeChange is True:
         planeChangeStyle = None
         planeChangeDVString = '**Plane Change Δv:** ' +                     \
-            "{:.1f}".format(norm(chosenTransfer.planeChangeDV)) + ' m/s';
+            "{:.2f}".format(norm(chosenTransfer.planeChangeDV)) + ' m/s';
         planeChangeTime = chosenTransfer.startTime +                        \
             chosenTransfer.planeChangeDT
         planeChangeTimeString = '**Plane Change Time:** Year ' +            \
