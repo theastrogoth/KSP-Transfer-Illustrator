@@ -858,7 +858,7 @@ def update_porkchop_data(nClicks, system, dateFormat,
     porkTable = PorkchopTable(sOrb, eOrb, transferType, noInsertion,
                               cheapStartOrb, cheapEndOrb,
                               minStartTime, maxStartTime,
-                              minFlightTime, maxFlightTime, 31, 31)
+                              minFlightTime, maxFlightTime, 26, 26)
     
     return jsonpickle.encode(porkTable)
 
