@@ -1069,7 +1069,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
         ' m/s normal';
     arrivalDVString = '**Arrival Burn:** ' +                                \
         "{:.1f}".format(norm([planeArrivalDV[0],planeArrivalDV[1]])) +      \
-        ' m/s prograde, ' +                                                 \
+        ' m/s retrograde, ' +                                                 \
         "{:.1f}".format(planeArrivalDV[2]) +                                \
         ' m/s normal';
     transferOrbitString = '**Transfer Orbit:**\n' +                         \
