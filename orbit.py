@@ -509,10 +509,6 @@ class Orbit:
             # Determine second basis through cross product of the others
             Y = np.cross(Z,X)
             Y = Y / norm(Y)
-            
-        X = np.array([1, 0, 0])
-        Y = np.array([0, 1, 0])
-        Z = np.array([0, 0, 1])
         
         return X, Y, Z
     
@@ -557,9 +553,9 @@ class Orbit:
         return self.rotate_to_bases(rPrim, X, Y, True)
     
     
-    def get_reference_positions(self, startTime = None, endTime = None, 
-                                  num = 101, times = None):
-        """ Returns an array of position vectors in the reference bases
+    def get_positions(self, startTime = None, endTime = None, 
+                      num = 101, times = None):
+        """ Returns an array of position vectors.
             
         Arguments:
             startTime (float): the earliest time (s)
@@ -579,11 +575,11 @@ class Orbit:
         
         # get the position vector for each time and add it to array
         for t in times:
-            parent = self.prim
             pos = self.get_state_vector(t)[0]
-            while not parent.orb.prim == parent:
-                pos = parent.orb.from_orbit_to_primary_bases(pos)
-                parent = parent.orb.prim
+            # parent = self.prim
+            # while not parent.orb.prim == parent:
+            #     pos = parent.orb.from_orbit_to_primary_bases(pos)
+            #     parent = parent.orb.prim
             positions = np.append(positions, [pos], axis=0)
         return positions
     

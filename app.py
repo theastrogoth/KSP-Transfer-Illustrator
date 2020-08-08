@@ -94,7 +94,7 @@ def add_orbit(figure, orb, times, dateFormat = None,
     else:
         fadedColor = color
     
-    pos = np.transpose(orb.get_reference_positions(times = times))
+    pos = np.transpose(orb.get_positions(times = times))
     maxVal = np.amax(np.absolute(pos))
     
     if not dateFormat is None:
@@ -335,7 +335,7 @@ def add_prograde_trace(figure, transfer, body, times):
     color = body.color
     
     pos = np.transpose(body.orb.                                            \
-                        get_reference_positions(times = times))
+                        get_positions(times = times))
     pos = [dim - dim[int(len(dim)/2)] for dim in pos]
     
     figure.add_trace(go.Scatter3d(
