@@ -75,6 +75,8 @@ class PorkchopTable:
             self.maxFlightTime = self.minFlightTime * 4
         else:
             self.maxFlightTime = maxFlightTime
+        if self.minFlightTime > self.maxFlightTime:
+            self.minFlightTime = self.maxFlightTime/4
             
         self.startTimes = np.linspace(self.minStartTime,                    \
                                       self.maxStartTime,                    \

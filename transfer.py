@@ -83,6 +83,62 @@ class Transfer:
         # self.genetic_refine()
     
     
+    # @staticmethod
+    # def solve_lambert_izzo(startOrbit, endOrbit, startTime, flightTime,
+    #                   planeChange = False, startPos = None, endPos = None,
+    #                   tol = 1E-14, maxIt = 20):
+    #     """Solves the Lambert problem to obtain a trajectory to the target.
+        
+    #     Args:
+    #         startOrbit (Orbit): orbit prior to departure
+    #         endOrbit (Orbit): orbit following arrival
+    #         startTime (float): time at the beginning of transfer (s)
+    #         flightTime (float): duration of transfer trajectory (s)
+    #         planeChange (bool): if true, a mid-course plane change occurs
+    #         startPos (vector): if provided, fixes start location at the
+    #             given position
+    #         endPos (vector): : if provided, fixes target location at the
+    #             given position
+    #         tol (float): the maximum tolerance for iteration termination
+    #         maxIt (int): the maximum number of iterations before breaking
+        
+    #     Returns:
+    #         transferOrbit (Orbit): trajectory before plane change
+    #         transferOrbitPC (Orbit): trajectory after plane change
+    #         planeChangeDV (array): plane change burn vector (m/s)
+    #         planeChangeDT (float): time between start and plane change (s)
+    #     """
+        
+    #     # Set gravitational parameter for transfer orbit
+    #     mu = startOrbit.prim.mu
+        
+    #     # Get start position
+    #     if startPos is None:
+    #         rStart = startOrbit.get_state_vector(startTime)[0]
+    #     else:
+    #         rStart = startPos
+        
+    #     # Adjust end position based on inputs
+    #     if endPos is None:
+    #         rEnd = endOrbit.get_state_vector(startTime + flightTime)[0]
+    #     else:
+    #         rEnd = endPos
+    #     if planeChange:
+    #         # Rotate the target orbit to be coplanar with the starting one
+    #         rEnd = startOrbit.from_primary_to_orbit_bases(rEnd)
+    #         rEnd = np.array([rEnd[0],rEnd[1],0]) /                          \
+    #             norm(np.array([rEnd[0],rEnd[1]])) * norm(rEnd);
+    #         rEnd = startOrbit.from_orbit_to_primary_bases(rEnd)
+        
+    #     # Code adapted from Oldenhuis' Lambert Solver, Izzo's method
+    #     # non-dimensional units
+    #     r1 = norm(rStart)
+    #     r1vec = rStart/r1;
+    #     V = math.sqrt(mu/r1);
+    #     r2vec = rEnd/r1;
+    #     T = r1/V;                  
+    
+    
     @staticmethod
     def solve_lambert(startOrbit, endOrbit, startTime, flightTime,
                       planeChange = False, startPos = None, endPos = None,
@@ -169,6 +225,7 @@ class Transfer:
         while err > tol:
             it = it+1
             if it > maxIt:
+                print('Lambert solver failed to converge')
                 break
             p = pNext
             a = m*k*p / ((2*m-L**2)*(p**2) + 2*k*L*p - k**2)
@@ -451,100 +508,128 @@ class Transfer:
         elif self.phaseAngle > math.pi:
             self.phaseAngle = self.phaseAngle - 2*math.pi
     
-    def get_ejection_details(self):
+    def get_ejection_details(self, tol = 0.1, maxIt = 50):
         """Get ejection trajectory with burn details."""
         
         # Assume that parking orbit is circular
-        ro = self.startOrbit.a              # distance from body at burn
         mu = self.startOrbit.prim.mu
         rEscape = self.startOrbit.prim.soi  # distance from body at escape
         
         # Get velocity of primary body and velocity needed after escape
         vPrim = self.startOrbit.prim.orb.get_state_vector(self.startTime)[1]
         vTrans = self.transferOrbit.get_state_vector(self.startTime)[1]
-        
-        # Excess velocity needed at escape from primary's sphere of influence
-        vRel = vTrans - vPrim
-        
-        # speed after ejection burn
-        vo = math.sqrt(norm(vRel)**2 + 2*(mu/ro - mu/rEscape))
-        
-        # escape trajectory elements
-        e = math.sqrt(1+2*(vo**2/2 - mu/ro) * ro**2 * vo**2 / mu**2)
-        a = 1 / (2/ro - vo**2/mu)
-        
-        # Describe positions at the SOI escape in the hyperbolic
-        # escape trajectory's orbital plane
-        # true anomaly at escape
-        try:
-            thetaEscape = math.acos(1/e * (a*(1-e**2)/rEscape - 1))
-        except ValueError:
-            thetaEscape = math.acos(
-                math.copysign(1, 1/e * (a*(1-e**2)/rEscape - 1)))
-        # flight path angle at escape
-        phiEscape = math.atan(e*math.sin(thetaEscape) /                     \
-                              (1+e*math.cos(thetaEscape)));
-        # velocity vector at escape in orbital reference bases
-        vEscape = math.sqrt(mu * (2/rEscape - 1/a)) *                       \
-            np.array([math.cos(thetaEscape + math.pi/2 - phiEscape),        \
-                      math.sin(thetaEscape + math.pi/2 - phiEscape),        \
-                      0]);
-        
-        # start orbit basis vectors
-        if not self.cheapStartOrb:
-            Xo, Yo, Zo = self.startOrbit.get_basis_vectors()
-        else:
-            Xo = np.array([1,0,0])
-            Yo = np.array([0,1,0])
-            Zo = np.array([0,0,1])
-        
-        # post-burn position and velocity vectors at periapsis, in the orbit's
-        # reference bases
-        if not self.cheapStartOrb:
-            roVec = self.startOrbit.from_primary_to_orbit_bases(ro * Xo)
-            voVec = self.startOrbit.from_primary_to_orbit_bases(vo * Yo)
-        else:
-            roVec = ro * Xo
-            voVec = vo * Yo
-        
-        # Reperesent the escape velocity in the orbital reference bases
-        if not self.cheapStartOrb:
-            vRel = self.startOrbit.from_primary_to_orbit_bases(vRel)
-            vEscape = self.startOrbit.from_primary_to_orbit_bases(vEscape)
-        
-        # Rotate the ejection trajectory to match the desired escape velocity
-        # An assumption is made that the periapsis lies in the primary body's
-        # x-y plane.
-        # First rotate around x-axis to match z-component
-        phi = math.atan2(vRel[2], math.sqrt(abs(norm(vEscape)**2 -          \
-                                                vEscape[0]**2 - vRel[2]**2)));
-        R1 = np.array([[1,              0,              0],                 \
-                       [0,      math.cos(phi),      -math.sin(phi)],        \
-                       [0,      math.sin(phi),       math.cos(phi)]]);
-        R1vEscape = np.matmul(R1, vEscape)
-        
-        # Then rotate around z-axis to match ejection direction
-        theta = math.atan2(vRel[1], vRel[0]) - math.atan2(R1vEscape[1],     \
-                                                          R1vEscape[0]);
-        R2 = np.array([[math.cos(theta),    -math.sin(theta),   0],         \
-                       [math.sin(theta),     math.cos(theta),   0],         \
-                       [0,              0,              1]]);
-        
-        # Apply rotations
-        roVec = np.matmul(R2, np.matmul(R1, roVec))
-        voVec = np.matmul(R2, np.matmul(R1, voVec))
-        
-        # Represent periapsis state vector in primary bases
-        if not self.cheapStartOrb:
-            roVec = self.startOrbit.from_orbit_to_primary_bases(roVec)
-            voVec = self.startOrbit.from_orbit_to_primary_bases(voVec)
+
+        err = tol + 1
+        it = 0
+        roNext = self.startOrbit.a
+        while abs(err) > tol:
+            it = it + 1
+            if it > maxIt:
+                # print('Ejection burn position failed to converge')
+                # print(err)
+                break
+            
+            # Periapsis radius of ejection trajectory (also burn position)
+            ro = roNext
+            
+            # Excess velocity needed at escape from primary's sphere of influence
+            vRel = vTrans - vPrim
+            
+            # speed after ejection burn
+            vo = math.sqrt(norm(vRel)**2 + 2*(mu/ro - mu/rEscape))
+            
+            # escape trajectory elements
+            e = math.sqrt(1+2*(vo**2/2 - mu/ro) * ro**2 * vo**2 / mu**2)
+            a = 1 / (2/ro - vo**2/mu)
+            
+            # Describe positions at the SOI escape in the hyperbolic
+            # escape trajectory's orbital plane
+            # true anomaly at escape
+            try:
+                thetaEscape = math.acos(1/e * (a*(1-e**2)/rEscape - 1))
+            except ValueError:
+                thetaEscape = math.acos(
+                    math.copysign(1, 1/e * (a*(1-e**2)/rEscape - 1)))
+            # flight path angle at escape
+            phiEscape = math.atan(e*math.sin(thetaEscape) /                 \
+                                  (1+e*math.cos(thetaEscape)));
+            # velocity vector at escape in orbital reference bases
+            vEscape = math.sqrt(mu * (2/rEscape - 1/a)) *                   \
+                np.array([math.cos(thetaEscape + math.pi/2 - phiEscape),    \
+                          math.sin(thetaEscape + math.pi/2 - phiEscape),    \
+                          0]);
+            
+            # start orbit basis vectors
+            if not self.cheapStartOrb:
+                Xo, Yo, Zo = self.startOrbit.get_basis_vectors()
+            else:
+                Xo = np.array([1,0,0])
+                Yo = np.array([0,1,0])
+                Zo = np.array([0,0,1])
+            
+            # post-burn position and velocity vectors at periapsis, in the orbit's
+            # reference bases
+            if not self.cheapStartOrb:
+                roVec = self.startOrbit.from_primary_to_orbit_bases(ro * Xo)
+                voVec = self.startOrbit.from_primary_to_orbit_bases(vo * Yo)
+            else:
+                roVec = ro * Xo
+                voVec = vo * Yo
+            
+            # Reperesent the escape velocity in the orbital reference bases
+            if not self.cheapStartOrb:
+                vRel = self.startOrbit.from_primary_to_orbit_bases(vRel)
+            
+            # Rotate the ejection trajectory to match the desired escape velocity
+            # An assumption is made that the periapsis lies in the primary body's
+            # x-y plane.
+            # First rotate around x-axis to match z-component
+            phi = math.atan2(vRel[2], math.sqrt(abs(norm(vEscape)**2 -      \
+                                             vEscape[0]**2 - vRel[2]**2)));
+            R1 = np.array([[1,              0,              0],             \
+                           [0,      math.cos(phi),      -math.sin(phi)],    \
+                           [0,      math.sin(phi),       math.cos(phi)]]);
+            R1vEscape = np.matmul(R1, vEscape)
+            
+            # Then rotate around z-axis to match ejection direction
+            theta = math.atan2(vRel[1], vRel[0]) - math.atan2(R1vEscape[1], \
+                                                              R1vEscape[0]);
+            R2 = np.array([[math.cos(theta),    -math.sin(theta),   0],     \
+                           [math.sin(theta),     math.cos(theta),   0],     \
+                           [0,              0,              1]]);
+            
+            # Apply rotations
+            roVec = np.matmul(R2, np.matmul(R1, roVec))
+            voVec = np.matmul(R2, np.matmul(R1, voVec))
+            
+            # Represent periapsis state vector in primary bases
+            if not self.cheapStartOrb:
+                roVec = self.startOrbit.from_orbit_to_primary_bases(roVec)
+                voVec =self.startOrbit.from_orbit_to_primary_bases(voVec)
+            
+            if self.cheapStartOrb:
+                err = 0
+            else:
+                angleDiff = self.startOrbit.get_angle_in_orbital_plane(     \
+                    self.startOrbit.get_time(0),roVec);
+                roVecActual, vParkActual =                                  \
+                    self.startOrbit.get_state_vector(                       \
+                        self.startOrbit.get_time(angleDiff));
+                prevErr = err
+                err = norm(roVec) - norm(roVecActual)
+                if abs(err)/abs(prevErr) > 0.9:
+                    roNext = (norm(roVecActual) + ro)/2
+                else:
+                    roNext = norm(roVecActual)
         
         # Get burn vector
         if self.cheapStartOrb:
             Zo = np.matmul(R2, np.matmul(R1, Zo))
+            vPark = np.cross(Zo,roVec)
+            vPark = math.sqrt(mu/ro) * vPark/norm(vPark)
+        else:
+            vPark = vParkActual
         
-        vPark = np.cross(Zo,roVec)
-        vPark = math.sqrt(mu/ro) * vPark/norm(vPark)
         self.ejectionDV = voVec - vPark;
         
         # adjust so that the mean anomaly at epoch is compatible with the 
@@ -578,13 +663,13 @@ class Transfer:
         
         # Get angle from prograde of ejection burn
         progradeAngle =                                                     \
-            self.startOrbit.prim.orb.get_angle_in_orbital_plane(            \
+            self.startOrbit.get_angle_in_orbital_plane(                     \
                 0,                                                          \
                 self.startOrbit.prim.orb.from_primary_to_orbit_bases(       \
                     self.startOrbit.prim.orb.get_state_vector(              \
                         self.get_departure_burn_time())[1]));
         burnAngle =                                                         \
-            self.startOrbit.prim.orb.get_angle_in_orbital_plane(            \
+            self.startOrbit.get_angle_in_orbital_plane(                     \
                 0,                                                          \
                 self.ejectionTrajectory.get_state_vector(                   \
                     self.get_departure_burn_time())[0]);
@@ -594,11 +679,10 @@ class Transfer:
             self.ejectionBurnAngle = self.ejectionBurnAngle - 2*math.pi
     
     
-    def get_insertion_details(self):
+    def get_insertion_details(self, tol = 0.1, maxIt = 50):
         """Get insertion trajectory with burn details."""
         
         # Assume that parking orbit is circular
-        ro = self.endOrbit.a              # distance from body at burn
         mu = self.endOrbit.prim.mu
         rEnc = self.endOrbit.prim.soi  # distance from body at encounter
         
@@ -607,82 +691,108 @@ class Transfer:
                                                         self.flightTime)[1];
         vTrans = self.transferOrbit.get_state_vector(self.startTime +       \
                                                       self.flightTime)[1];
+        err = tol + 1
+        it = 0
+        roNext = self.endOrbit.a
+        while abs(err) > tol:
+            it = it + 1
+            if it > maxIt:
+                # print('Insertion burn position failed to converge')
+                # print(err)
+                break
+            
+            # Periapsis radius of insertion trajectory (also burn position)
+            ro = roNext
         
-        # Excess velocity at encounter at primary's sphere of influence
-        vRel = vTrans - vPrim
-        
-        # speed before insertion burn
-        vo = math.sqrt(norm(vRel)**2 + 2*(mu/ro - mu/rEnc))
-        
-        # insertion trajectory elements
-        e = math.sqrt(1+2*(vo**2/2 - mu/ro) * ro**2 * vo**2 / mu**2)
-        a = 1 / (2/ro - vo**2/mu)
-        
-        # Describe positions at the SOI encounter in the hyperbolic
-        # insertion trajectory's orbital plane
-        # true anomaly at escape
-        try:
-            thetaEncounter = -math.acos(1/e * (a*(1-e**2)/rEnc - 1))
-        except ValueError:
-            thetaEncounter = -math.acos(
-                math.copysign(1, 1/e * (a*(1-e**2)/rEnc - 1)))
-        # flight path angle at encounter
-        phiEncounter = math.atan(e*math.sin(thetaEncounter) /               \
-                              (1+e*math.cos(thetaEncounter)));
-        # velocity vector at encounter in orbital reference bases
-        vEncounter = math.sqrt(mu * (2/rEnc - 1/a)) *                    \
-            np.array([math.cos(thetaEncounter + math.pi/2 - phiEncounter),  \
-                      math.sin(thetaEncounter + math.pi/2 - phiEncounter),  \
-                      0]);
-        
-        # end orbit basis vectors
-        if not self.cheapEndOrb:
-            Xo, Yo, Zo = self.endOrbit.get_basis_vectors()
-        else:
-            Xo = np.array([1,0,0])
-            Yo = np.array([0,1,0])
-            Zo = np.array([0,0,1])
-        
-        # pre-burn position and velocity vectors at periapsis, in the orbit's
-        # reference bases
-        if not self.cheapEndOrb:
-            roVec = self.endOrbit.from_primary_to_orbit_bases(ro * Xo)
-            voVec = self.endOrbit.from_primary_to_orbit_bases(vo * Yo)
-        else:
-            roVec = ro * Xo
-            voVec = vo * Yo
-        
-        # Reperesent the encounter velocity in the orbital reference bases
-        if not self.cheapEndOrb:
-            vRel = self.endOrbit.from_primary_to_orbit_bases(vRel)
-            vEncounter = self.endOrbit.from_primary_to_orbit_bases(vEncounter)
-        
-        # Rotate the insertion trajectory to match the desired escape velocity
-        # An assumption is made that the periapsis lies in the primary body's
-        # x-y plane.
-        # First rotate around x-axis to match z-component
-        phi = math.atan2(vRel[2], math.sqrt(abs(norm(vEncounter)**2 -       \
-                                            vEncounter[0]**2 - vRel[2]**2)));
-        R1 = np.array([[1,              0,              0],                 \
-                       [0,      math.cos(phi),      -math.sin(phi)],        \
-                       [0,      math.sin(phi),       math.cos(phi)]]);
-        R1vEncounter = np.matmul(R1, vEncounter)
-        
-        # Then rotate around z-axis to match insertion direction
-        theta = math.atan2(vRel[1], vRel[0]) - math.atan2(R1vEncounter[1],  \
-                                                          R1vEncounter[0]);
-        R2 = np.array([[math.cos(theta),    -math.sin(theta),   0],         \
-                       [math.sin(theta),     math.cos(theta),   0],         \
-                       [0,              0,              1]]);
-        
-        # Apply rotations
-        roVec = np.matmul(R2, np.matmul(R1, roVec))
-        voVec = np.matmul(R2, np.matmul(R1, voVec))
-        
-        # Represent periapsis state vector in primary bases
-        if not self.cheapEndOrb:
-            roVec = self.endOrbit.from_orbit_to_primary_bases(roVec)
-            voVec = self.endOrbit.from_orbit_to_primary_bases(voVec)
+            # Excess velocity at encounter at primary's sphere of influence
+            vRel = vTrans - vPrim
+            
+            # speed before insertion burn
+            vo = math.sqrt(norm(vRel)**2 + 2*(mu/ro - mu/rEnc))
+            
+            # insertion trajectory elements
+            e = math.sqrt(1+2*(vo**2/2 - mu/ro) * ro**2 * vo**2 / mu**2)
+            a = 1 / (2/ro - vo**2/mu)
+            
+            # Describe positions at the SOI encounter in the hyperbolic
+            # insertion trajectory's orbital plane
+            # true anomaly at escape
+            try:
+                thetaEncounter = -math.acos(1/e * (a*(1-e**2)/rEnc - 1))
+            except ValueError:
+                thetaEncounter = -math.acos(
+                    math.copysign(1, 1/e * (a*(1-e**2)/rEnc - 1)))
+            # flight path angle at encounter
+            phiEncounter = math.atan(e*math.sin(thetaEncounter) /               \
+                                  (1+e*math.cos(thetaEncounter)));
+            # velocity vector at encounter in orbital reference bases
+            vEncounter = math.sqrt(mu * (2/rEnc - 1/a)) *                    \
+                np.array([math.cos(thetaEncounter + math.pi/2 - phiEncounter),  \
+                          math.sin(thetaEncounter + math.pi/2 - phiEncounter),  \
+                          0]);
+            
+            # end orbit basis vectors
+            if not self.cheapEndOrb:
+                Xo, Yo, Zo = self.endOrbit.get_basis_vectors()
+            else:
+                Xo = np.array([1,0,0])
+                Yo = np.array([0,1,0])
+                Zo = np.array([0,0,1])
+            
+            # pre-burn position and velocity vectors at periapsis, in the orbit's
+            # reference bases
+            if not self.cheapEndOrb:
+                roVec = self.endOrbit.from_primary_to_orbit_bases(ro * Xo)
+                voVec = self.endOrbit.from_primary_to_orbit_bases(vo * Yo)
+            else:
+                roVec = ro * Xo
+                voVec = vo * Yo
+            
+            # Reperesent the encounter velocity in the orbital reference bases
+            if not self.cheapEndOrb:
+                vRel = self.endOrbit.from_primary_to_orbit_bases(vRel)
+            
+            # Rotate the insertion trajectory to match the desired escape velocity
+            # An assumption is made that the periapsis lies in the primary body's
+            # x-y plane.
+            # First rotate around x-axis to match z-component
+            phi = math.atan2(vRel[2], math.sqrt(abs(norm(vEncounter)**2 -       \
+                                                vEncounter[0]**2 - vRel[2]**2)));
+            R1 = np.array([[1,              0,              0],                 \
+                           [0,      math.cos(phi),      -math.sin(phi)],        \
+                           [0,      math.sin(phi),       math.cos(phi)]]);
+            R1vEncounter = np.matmul(R1, vEncounter)
+            
+            # Then rotate around z-axis to match insertion direction
+            theta = math.atan2(vRel[1], vRel[0]) - math.atan2(R1vEncounter[1],  \
+                                                              R1vEncounter[0]);
+            R2 = np.array([[math.cos(theta),    -math.sin(theta),   0],         \
+                           [math.sin(theta),     math.cos(theta),   0],         \
+                           [0,              0,              1]]);
+            
+            # Apply rotations
+            roVec = np.matmul(R2, np.matmul(R1, roVec))
+            voVec = np.matmul(R2, np.matmul(R1, voVec))
+            
+            # Represent periapsis state vector in primary bases
+            if not self.cheapEndOrb:
+                roVec = self.endOrbit.from_orbit_to_primary_bases(roVec)
+                voVec = self.endOrbit.from_orbit_to_primary_bases(voVec)
+            
+            if self.cheapEndOrb:
+                err = 0
+            else:
+                angleDiff = self.endOrbit.get_angle_in_orbital_plane(       \
+                    self.endOrbit.get_time(0),roVec);
+                roVecActual, vParkActual =                                  \
+                    self.endOrbit.get_state_vector(                         \
+                        self.endOrbit.get_time(angleDiff));
+                prevErr = err
+                err = norm(roVec) - norm(roVecActual)
+                if abs(err)/abs(prevErr) > 0.9:
+                    roNext = (norm(roVecActual) + ro)/2
+                else:
+                    roNext = norm(roVecActual)
         
         # Get burn vector
         if self.cheapEndOrb:
@@ -722,6 +832,42 @@ class Transfer:
                 Orbit.from_state_vector(roVec,vPark,                        \
                                         self.get_arrival_burn_time(),       \
                                         self.endOrbit.prim);
+    
+    
+    def adjust_start_orbit(self):
+        """Modify starting orbit to have mean anomaly at epoch matching burn.
+        """
+        
+        burnTime = self.get_departure_burn_time()
+        
+        trueAnom = self.startOrbit.get_angle_in_orbital_plane(              \
+            self.startOrbit.get_time(0),                                    \
+            self.ejectionTrajectory.get_state_vector(burnTime)[0]);
+        
+        dMeanAnom = self.startOrbit.get_mean_anomaly(                       \
+                                    self.startOrbit.get_time(trueAnom)) -   \
+                    self.startOrbit.get_mean_anomaly(burnTime);
+        
+        self.startOrbit.mo =                                                \
+            self.startOrbit.map_angle(self.startOrbit.mo + dMeanAnom);
+    
+    
+    def adjust_end_orbit(self):
+        """Modify starting orbit to have mean anomaly at epoch matching burn.
+        """
+        
+        burnTime = self.get_arrival_burn_time()
+        
+        trueAnom = self.endOrbit.get_angle_in_orbital_plane(                \
+            self.endOrbit.get_time(0),                                      \
+            self.insertionTrajectory.get_state_vector(burnTime)[0]);
+        
+        dMeanAnom = self.endOrbit.get_mean_anomaly(                         \
+                                    self.endOrbit.get_time(trueAnom)) -     \
+                    self.endOrbit.get_mean_anomaly(burnTime);
+        
+        self.endOrbit.mo =                                                  \
+            self.endOrbit.map_angle(self.endOrbit.mo + dMeanAnom);
     
     
     def get_departure_burn_time(self):
@@ -821,7 +967,7 @@ class Transfer:
         return vec/norm(vec)
     
     
-    def genetic_refine(self, num = 10, tol = 20, maxGen = 75):
+    def genetic_refine(self, num = 10, tol = 10, maxGen = 75):
         """Genetic algorithm to find start and end positions for Transfer"""
         
         # TO DO: figure out better mutation methods, convergence for high
@@ -852,6 +998,10 @@ class Transfer:
         self.startPos = startPositions[0]
         self.endPos = endPositions[0]
         self.convergenceFail = False
+        if not self.ejectionTrajectory is None:
+            self.adjust_start_orbit()
+        if not self.insertionTrajectory is None:
+            self.adjust_end_orbit()
         return
     
     

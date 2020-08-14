@@ -140,8 +140,12 @@ class Orbit:
         # Hyperbolic case
         elif ecc > 1:
             # Get hyperbolic anomaly at time t
-            hypAnom = math.acosh((ecc+math.cos(nu)) /                       \
-                                 (1+ecc*math.cos(nu)))
+            try:
+                hypAnom = math.acosh((ecc+math.cos(nu)) /                   \
+                                     (1+ecc*math.cos(nu)))
+            except ValueError:
+                hypAnom = 2*math.atanh(math.sqrt((ecc-1)/(ecc+1))           \
+                                       * math.tan(nu/2));
             if nu < 0:
                 hypAnom = -hypAnom
             
@@ -269,26 +273,35 @@ class Orbit:
         Y = Y - np.dot(X,Y)/norm(X)**2
         X = X / norm(X)
         Y = Y / norm(Y)
+        Z = np.cross(X,Y)
+        Z = Z / norm(Z)
         
-        # Calcualte Tiat-Bryan angles
-        psi = math.atan2(X[1], X[0])
-        theta = math.atan2(-X[2], math.sqrt(1-X[2]**2))
-        phi = math.atan2(Y[2], math.sqrt(1-Y[2]**2))
+        # # Calcualte Tiat-Bryan angles NO NEED, SINCE WE KNOW THE NEXT BASES
+        # psi = math.atan2(X[1], X[0])
+        # theta = math.atan2(-X[2], math.sqrt(1-X[2]**2))
+        # phi = math.atan2(Y[2], math.sqrt(1-Y[2]**2))
         
-        c1 = math.cos(psi);     s1 = math.sin(psi);
-        c2 = math.cos(theta);   s2 = math.sin(theta);
-        c3 = math.cos(phi);     s3 = math.sin(phi);
+        # psi = math.atan2(X[1], X[0])
+        # theta = math.atan2(-X[2], math.sqrt(1-X[2]**2))
+        # phi = math.atan2(Y[2], math.sqrt(1-Y[2]**2))
         
-        # Construct rotation matrix
-        rot = np.array([[c1*c2, c1*s2*s3-c3*s1, s1*s3+c1*c3*s2],            \
-                       [c2*s1, c1*c3+s1*s2*s3, c3*s1*s2-c1*s3],             \
-                       [-s2,   c2*s3,          c2*c3]])
+        # c1 = math.cos(psi);     s1 = math.sin(psi);
+        # c2 = math.cos(theta);   s2 = math.sin(theta);
+        # c3 = math.cos(phi);     s3 = math.sin(phi);
+        
+        # # Construct rotation matrix
+        # rot = np.array([[c1*c2, c1*s2*s3-c3*s1, s1*s3+c1*c3*s2],            \
+        #                [c2*s1, c1*c3+s1*s2*s3, c3*s1*s2-c1*s3],             \
+        #                [-s2,   c2*s3,          c2*c3]]);
+        
+        # Transformation Matrix
+        rot = np.array([X,Y,Z])
         
         # Apply the rotation (or inverse of the rotation)
         if invert:
-            r = np.matmul(rot,r)
-        else:
             r = np.matmul(np.transpose(rot),r)
+        else:
+            r = np.matmul(rot,r)
         return r
     
     
@@ -319,6 +332,7 @@ class Orbit:
             if self.ecc < 1:
                 meanAnom = self.map_angle(meanAnom)
         return meanAnom
+    
     
     def get_true_anomaly(self, t):
         """Returns the true anomaly of the orbital trajectory at time t.
@@ -401,8 +415,13 @@ class Orbit:
         # Hyperbolic case
         else:
             # Calculate hyperbolic anomaly
-            hypAnom = math.acosh((self.ecc+math.cos(trueAnom)) /            \
-                                 (1+self.ecc*math.cos(trueAnom)))
+            try:
+                hypAnom = math.acosh((self.ecc+math.cos(trueAnom)) /        \
+                                     (1+self.ecc*math.cos(trueAnom)));
+            except ValueError:
+                hypAnom = 2*math.atanh(math.sqrt((self.ecc-1)/(self.ecc+1)) \
+                                       * math.tan(trueAnom/2));
+                    
             if trueAnom < 0:
                 hypAnom = -hypAnom
             
@@ -504,7 +523,11 @@ class Orbit:
             # Set first basis vector based on celestial longitude
             X = np.array([1, 0, 0])     # assumed celestial longitude
             X = X - np.dot(X,Z) * Z/norm(Z)**2
-            X = X / norm(X)
+            if norm(X) < 1E-15:
+                X = np.array([0, math.copysign(1,Z[0]), 0])
+                Z = np.array([math.copysign(1,Z[0]), 0, 0])
+            else:
+                X = X / norm(X)
             
             # Determine second basis through cross product of the others
             Y = np.cross(Z,X)
@@ -569,18 +592,20 @@ class Orbit:
         """
         # initialize positions array and evenly sample times
         positions = np.empty((0,3))
+        velocities = np.empty((0,3))
         if times is None:
             times = np.linspace(startTime, endTime, num)
         
         # get the position vector for each time and add it to array
         for t in times:
-            pos = self.get_state_vector(t)[0]
+            pos, vel = self.get_state_vector(t)
             # parent = self.prim
             # while not parent.orb.prim == parent:
             #     pos = parent.orb.from_orbit_to_primary_bases(pos)
             #     parent = parent.orb.prim
             positions = np.append(positions, [pos], axis=0)
-        return positions
+            velocities = np.append(velocities, [vel], axis=0)
+        return positions, velocities
     
     
     def get_angle_in_orbital_plane(self, t, vec):
@@ -609,14 +634,14 @@ class Orbit:
         return self.map_angle(thetaVecPlane - thetaRPlane)
     
     def __str__(self):
-        string = '  Semimajor axis: ' + "{:.5f}".format(self.a) + ' m\n' +  \
-            '  Eccentricity: ' + "{:.9f}".format(self.ecc) + '\n'           \
-            '  Inclination: '+"{:.9f}".format(self.inc*180/math.pi) + '°\n'+\
+        string = '  Semi-major axis: ' + "{:.2f}".format(self.a) + ' m\n' +  \
+            '  Eccentricity: ' + "{:.6f}".format(self.ecc) + '\n'           \
+            '  Inclination: '+"{:.6f}".format(self.inc*180/math.pi) + '°\n'+\
             '  Argument of Periapsis: ' +                                   \
-                "{:.9f}".format(self.argp*180/math.pi) + '°\n' +            \
+                "{:.6f}".format(self.argp*180/math.pi) + '°\n' +            \
             '  Longitude of Ascending Node: ' +                             \
-                "{:.9f}".format(self.lan*180/math.pi) + '°\n' +             \
+                "{:.6f}".format(self.lan*180/math.pi) + '°\n' +             \
             '  Mean Anomaly at Epoch: ' +                                   \
-                "{:.9f}".format(self.mo) + ' radians\n' +                   \
+                "{:.6f}".format(self.mo) + ' radians\n' +                   \
             '  Primary Body: ' + self.prim.name;
         return string
