@@ -24,30 +24,9 @@ app.title='KSP Transfer Illustrator'
 infile = open('kerbol_system.json','r')
 kerbol_system = jsonpickle.decode(infile.read())
 infile.close
-# infile = open('sol_system.json','r')
-# sol_system = jsonpickle.decode(infile.read())
-# infile.close
-
-#%% prepare solar system dictionaries
-start_bodies = []
-for bd in kerbol_system:
-    start_bodies.append(bd.name) 
-
-end_bodies = [
-              [[bd.orb.prim.name],
-              [sat.name for sat in bd.orb.prim.satellites if bd != bd.orb.prim],
-              [sat.name for sat in bd.satellites]] for bd in kerbol_system]
-
-eb = []
-for startBody in end_bodies:
-    eb.append([item for sublist in startBody for item in sublist if item])
-
-start_body_options = {'Kerbol': start_bodies}
-#                'Sol': ['Mercury','Venus','Earth']}
-
-end_body_options = dict()
-for x,bd in enumerate(kerbol_system):
-    end_body_options[bd.name] = eb[x]
+infile = open('sol_system.json','r')
+sol_system = jsonpickle.decode(infile.read())
+infile.close
 
 
 #%% porkchop plot functions
@@ -86,7 +65,7 @@ def fade_color(color, div = 2):
     
     return tuple(math.floor(c/2) for c in color)
 
-def add_orbit(figure, orb, times, dateFormat = None, 
+def add_orbit(figure, orb, startTime, endTime, numPts=201, dateFormat = None,
               color = (255,255,255), name = '', style = 'solid', fade = True):
     
     if fade:
@@ -94,7 +73,91 @@ def add_orbit(figure, orb, times, dateFormat = None,
     else:
         fadedColor = color
     
-    pos = np.transpose(orb.get_positions(times = times))
+    period = orb.get_period()
+    
+    # start and end mean anomalies
+    mStart = orb.get_mean_anomaly(startTime)
+    if (period < (endTime-startTime) and orb.ecc < 1):
+        mEnd = mStart + 2*math.pi
+    else:
+        mEnd = mStart + 2*math.pi/period * (endTime-startTime)
+    
+    # get points clustered around apoapsis and periapsis
+    if orb.ecc < 1:
+        a = mStart - (mStart%math.pi)
+        b = a + math.pi
+    else:
+        if mStart < 0:
+            a = mStart
+            b = 0
+        else:
+            a = 0
+            b = mEnd
+    # orbit crosses two apo/peri-apses
+    if ((mEnd >= b + math.pi) and (orb.ecc < 1)):
+        c = b + math.pi
+        d = c + math.pi
+        n = math.ceil(math.pi/(mEnd-mStart)*numPts)
+        kStart = n*math.acos((a+b-2*mStart)/(b-a))/math.pi
+        kEnd =   n*math.acos((c+d-2*mEnd)/(d-c))/math.pi
+        ks1 = [[kStart]]
+        ks1.append([*range(math.ceil(kStart), n)])
+        ks1 = [k for sublist in ks1 for k in sublist]
+        meanAnoms1 =                                                        \
+            [0.5*(a+b) + 0.5*(b-a) *math.cos((n-k)/n*math.pi) for k in ks1];
+        ks2 = [*range(0,n)]
+        meanAnoms2 =                                                        \
+            [0.5*(b+c) + 0.5*(c-b) *math.cos((n-k)/n*math.pi) for k in ks2];
+        ks3 = [*range(0,math.ceil(kEnd))]
+        ks3.append(kEnd)
+        meanAnoms3 =                                                        \
+            [0.5*(c+d) + 0.5*(d-c) *math.cos((n-k)/n*math.pi) for k in ks3];
+        meanAnoms = np.append(meanAnoms1, meanAnoms2)
+        meanAnoms = np.append(meanAnoms, meanAnoms3)
+        times = startTime + period/(2*math.pi) * (meanAnoms - mStart)
+    # orbit crosses one apo/peri-apsis
+    elif mEnd > b:
+        if orb.ecc < 1:
+            c = b + math.pi
+            n1 = math.ceil(math.pi/(mEnd-mStart)*numPts)
+            n2 = n1
+        else:
+            c = mEnd
+            n1 = math.ceil(abs(mStart/(mEnd-mStart))*numPts)
+            n2 = math.ceil(abs(mEnd/(mEnd-mStart))*numPts)
+        kStart = n1*math.acos((a+b-2*mStart)/(b-a))/math.pi
+        kEnd =   n2*math.acos((b+c-2*mEnd)/(c-b))/math.pi
+        ks1 = [[kStart]]
+        ks1.append([*range(math.ceil(kStart), n1)])
+        ks1 = [k for sublist in ks1 for k in sublist]
+        meanAnoms1 =                                                        \
+            [0.5*(a+b) + 0.5*(b-a) *math.cos((n1-k)/n1*math.pi) for k in ks1];
+        ks2 = [*range(0,math.ceil(kEnd))]
+        ks2.append(kEnd)
+        meanAnoms2 =                                                        \
+            [0.5*(b+c) + 0.5*(c-b) *math.cos((n2-k)/n2*math.pi) for k in ks2];
+        meanAnoms = np.append(meanAnoms1, meanAnoms2)
+        times = startTime + period/(2*math.pi) * (meanAnoms - mStart)
+    # orbit crosses no apo/peri-apses
+    else:
+        if orb.ecc < 1:
+            n = math.ceil(2*math.pi/(mEnd-mStart)*numPts)
+        else:
+            n = numPts
+        kStart = n*math.acos((a+b-2*mStart)/(b-a))/math.pi
+        kEnd = n*math.acos((a+b-2*mEnd)/(b-a))/math.pi
+        ks = [[kStart]]
+        ks.append([*range(math.ceil(kStart), math.ceil(kEnd))])
+        ks.append([kEnd])
+        ks = [k for sublist in ks for k in sublist]
+        meanAnoms = np.array(                                               \
+            [0.5*(a+b) + 0.5*(b-a) *math.cos((n-k)/n*math.pi) for k in ks]);
+        meanAnoms = meanAnoms.flatten()
+        times = startTime + period/(2*math.pi) * (meanAnoms - mStart)
+    
+    pos, vel = orb.get_positions(times = times)
+    pos = np.transpose(pos)
+    vel = np.transpose(vel)
     maxVal = np.amax(np.absolute(pos))
     
     if not dateFormat is None:
@@ -102,18 +165,26 @@ def add_orbit(figure, orb, times, dateFormat = None,
         year = dateFormat['year']
         
         cData = np.stack((norm(pos, axis = 0)/1000,
-                            np.floor(times/(3600*day*year))+1,
-                            np.floor(times%(3600*day*year)/(day*3600)+1),
-                            np.floor((times%(3600*day))/3600),
-                            np.floor(((times%(3600*day))%3600)/60),
-                            np.floor(((times%(3600*day))%3600)%60)),
+                          norm(vel, axis = 0),
+                          np.floor(times/(3600*day*year))+1,
+                          np.floor(times%(3600*day*year)/(day*3600)+1),
+                          np.floor((times%(3600*day))/3600),
+                          np.floor(((times%(3600*day))%3600)/60),
+                          np.floor(((times%(3600*day))%3600)%60)),
                           axis=1);
-        hoverLabel = "r = %{customdata[0]:.4e} km" + "<br>" +\
-                        "Year %{customdata[1]:.0f}, " +\
-                            "Day %{customdata[2]:.0f} " +\
-                                "%{customdata[3]:0>2d}" + ":" +\
-                                    "%{customdata[4]:0>2d}" + ":" +\
-                                        "%{customdata[5]:0>2d}"
+        hoverLabel = "r = %{customdata[0]:.3e} km" + "<br>" +\
+                     "v = %{customdata[1]:.3e} m/s" + "<br>" +\
+                     "Year %{customdata[2]:.0f}, " +\
+                     "Day %{customdata[3]:.0f} " +\
+                     "%{customdata[4]:0>2d}" + ":" +\
+                     "%{customdata[5]:0>2d}" + ":" +\
+                     "%{customdata[6]:0>2d}" + "<br>" + "<br>" +\
+                     "Semi-major Axis = " + "{:.0f}".format(orb.a) + " m" + "<br>" +\
+                     "Eccentricity = " + "{:.4f}".format(orb.ecc) + "<br>" +\
+                     "Inclination = " + "{:.4f}".format(orb.inc*180/math.pi) + "°" + "<br>" +\
+                     "Argument of the Periapsis = " + "{:.4f}".format(orb.argp*180/math.pi) + "°" + "<br>" +\
+                     "Longitude of Ascending Node = " + "{:.4f}".format(orb.lan*180/math.pi) + "°" + "<br>" +\
+                     "Mean Anomaly at Epoch = " + "{:.4f}".format(orb.mo) + " rad"
     else:
         cData = norm(pos, axis = 0)/1000
         hoverLabel = "r = %{customdata:.4e} km"
@@ -284,7 +355,7 @@ def add_ejection_angle(figure, transfer, r = None):
     if not (transfer.ejectionBurnAngle is None):
         if r is None:
             r =  1.5*transfer.startOrbit.a
-        rBurn = transfer.startOrbit.prim.orb.from_primary_to_orbit_bases(
+        rBurn = transfer.startOrbit.from_primary_to_orbit_bases(
             transfer.ejectionTrajectory.get_state_vector(
                 transfer.get_departure_burn_time())[0])
         startAngle = math.atan2(rBurn[1],rBurn[0])
@@ -294,8 +365,7 @@ def add_ejection_angle(figure, transfer, r = None):
             np.cos(arcAngles),
             np.sin(arcAngles),
             0*arcAngles])
-        arcPos = transfer.startOrbit.prim.orb                               \
-            .from_orbit_to_primary_bases(arcPos)
+        arcPos = transfer.startOrbit.from_orbit_to_primary_bases(arcPos)
         
         figure.add_trace(go.Scatter3d(
             x = arcPos[0],
@@ -330,12 +400,14 @@ def add_ejection_angle(figure, transfer, r = None):
             )
         )
 
-def add_prograde_trace(figure, transfer, body, times):
+def add_prograde_trace(figure, transfer, body,
+                       startTime, endTime, numPts = 201):
     
     color = body.color
+    times = np.linspace(startTime, endTime, numPts)
     
     pos = np.transpose(body.orb.                                            \
-                        get_positions(times = times))
+                        get_positions(times = times)[0])
     pos = [dim - dim[int(len(dim)/2)] for dim in pos]
     
     figure.add_trace(go.Scatter3d(
@@ -425,11 +497,9 @@ app.layout = html.Div(className='row', children=[
                     html.Label('System'),
                     dcc.RadioItems(
                         id = 'system-radio',
-                        # options=[{'label': k, 'value': k}                   \
-                        #          for k in start_body_options.keys()],
                         options=[
-                            {'label': 'Kerbol', 'value': 'Kerbol'},],
-                            # {'label': 'Sol', 'value': 'Sol'}],
+                            {'label': 'Kerbol', 'value': 'Kerbol'},
+                            {'label': 'Sol', 'value': 'Sol'}],
                         value='Kerbol',
                         ),
                     html.Label('Starting Body'),
@@ -512,9 +582,12 @@ app.layout = html.Div(className='row', children=[
                         html.Label('Longest Flight Duration (days)'),
                         dcc.Input(id = 'longFlightDays-input',
                                   type='number'),
+                        html.Label('Number of Points Sampled per Axis'),
+                        dcc.Input(id = 'numPointsSampled-input', value=25,
+                                  type='number'),
                         
                         html.H3('Custom Starting Orbit'),
-                        html.Label('Semimajor axis (m)'),
+                        html.Label('Semi-major axis (m)'),
                         dcc.Input(id = 'starta-input',  
                                   type='number',
                                   value = 0),
@@ -544,7 +617,7 @@ app.layout = html.Div(className='row', children=[
                                   value = 0),
                         
                         html.H3('Custom Ending Orbit'),
-                        html.Label('Semimajor axis (m)'),
+                        html.Label('Semi-major axis (m)'),
                         dcc.Input(id = 'enda-input',  
                                   type='number',
                                   value = 0),
@@ -669,6 +742,10 @@ app.layout = html.Div(className='row', children=[
         ]),
     # Hidden Divs to store data
     html.Div(id='dateFormat-div', style = {'display': 'none'}),
+    html.Div(id='allSystems-div', style = {'display': 'none'},
+             children=[
+                 jsonpickle.encode(kerbol_system),
+                 jsonpickle.encode(sol_system)]),
     html.Div(id='system-div', style={'display': 'none',}, 
              children=jsonpickle.encode(kerbol_system)),
     ])
@@ -683,39 +760,65 @@ def set_date_format(selected_format):
     return formats[selected_format]
 
 @app.callback(
-    Output('startingBody-dropdown', 'options'),
-    [Input('system-div', 'children'),
-     Input('system-radio', 'value')]
+    [Output('system-div', 'children'),
+     Output('startingBody-dropdown', 'value'),
+     Output('endingBody-dropdown', 'value')],
+    [Input('system-radio','value')],
+    [State('allSystems-div', 'children')]
     )
-def set_startBody_options(system_data, selected_system):
-    return [{'label': i, 'value': i} 
-            for i in start_body_options[selected_system]]
+def set_system(system_name, all_systems):
+    if system_name == 'Kerbol':
+        return all_systems[0], 'Kerbin', 'Duna'
+    elif system_name == 'Sol':
+        return all_systems[1], 'Earth', 'Mars'
+    else:
+        return dash.no_update, dash.no_update, dash.no_update
+
+@app.callback(
+    Output('startingBody-dropdown', 'options'),
+    [Input('system-div', 'children')]
+    )
+def set_startBody_options(system_data):
+    system_data_d = jsonpickle.decode(system_data)
+    start_bodies = []
+    for bd in system_data_d:
+        start_bodies.append(bd.name) 
+    return [{'label': i, 'value': i} for i in start_bodies]
 
 @app.callback(
     Output('endingBody-dropdown', 'options'),
-    [Input('startingBody-dropdown', 'value')]
+    [Input('startingBody-dropdown', 'value')],
+    [State('system-div', 'children')]
     )
-def set_endBody_options(selected_body):
-    return [{'label': i, 'value': i} for i in end_body_options[selected_body]]
+def set_endBody_options(start_body_name, system_data):
+    system_data_d = jsonpickle.decode(system_data)
+    sb = [x for x in system_data_d if x.name == start_body_name][0]
+    end_bodies = [sb.orb.prim.name]
+    if sb != sb.orb.prim:
+        for sat in sb.orb.prim.satellites:
+            end_bodies.append(sat.name)
+    for sat in sb.satellites:
+        end_bodies.append(sat.name)
+    return [{'label': i, 'value': i} for i in end_bodies]
 
 @app.callback(
     Output('starta-input', 'value'),
-    [Input('system-div', 'children'),
-     Input('startingBody-dropdown', 'value'),
-     Input('startPark-input', 'value')]
+    [Input('startingBody-dropdown', 'value'),
+     Input('startPark-input', 'value')],
+    [State('system-div', 'children')],
     )
-def update_start_a(system_data, start_body_name, park_alt):
+def update_start_a(start_body_name, park_alt, system_data):
     system_data_d = jsonpickle.decode(system_data)
     start_body = [x for x in system_data_d if x.name == start_body_name][0]
     return start_body.eqr + 1000*park_alt
 
 @app.callback(
     Output('enda-input', 'value'),
-    [Input('system-div', 'children'),
-     Input('endingBody-dropdown', 'value'),
-     Input('endPark-input', 'value')]
+    [Input('endingBody-dropdown', 'value'),
+     Input('endPark-input', 'value')],
+    [State('system-div', 'children')],
     )
-def update_end_a(system_data, end_body_name, park_alt):
+def update_end_a(end_body_name, park_alt, system_data):
     system_data_d = jsonpickle.decode(system_data)
     end_body = [x for x in system_data_d if x.name == end_body_name][0]
     return end_body.eqr + 1000*park_alt
@@ -794,7 +897,8 @@ def update_early_start_day(early_start_day2, prev_state):
      State('lateStartYear-input','value'),
      State('lateStartDay-input','value'),
      State('shortFlightDays-input','value'),
-     State('longFlightDays-input','value')]
+     State('longFlightDays-input','value'),
+     State('numPointsSampled-input','value')]
     )
 def update_porkchop_data(nClicks, system, dateFormat,
                           transferType,
@@ -804,39 +908,85 @@ def update_porkchop_data(nClicks, system, dateFormat,
                           endBodyName, endA, endEcc, endInc,
                           endArgP, endLAN, endMo, endEpoch,
                           minStartYear, minStartDay, maxStartYear, maxStartDay,
-                          minFlightDays, maxFlightDays):
+                          minFlightDays, maxFlightDays, numPointsSampled):
     
     # return empty plot on page load
     if nClicks == 0:
         return dash.no_update
     
-    # prepare starting and ending orbits
+    
+    # prepare system information, start & and bodies
     system = jsonpickle.decode(system)
     sBody = [x for x in system if x.name == startBodyName][0]
+    eBody = [x for x in system if x.name == endBodyName][0]
+    
+    # prepare start and end orbit parameters
+    if startA is None:
+        startA = sBody.eqr + 100000
+    if startEcc is None:
+        startEcc = 0
+    if startInc is None:
+        startInc = 0
+    if startArgP is None:
+        startArgP = 0
+    if startLAN is None:
+        startLAN = 0
+    if startMo is None:
+        startMo = 0
+    if startEpoch is None:
+        startEpoch = 0
+    
+    if endA is None:
+        endA = eBody.eqr + 100000
+    if endEcc is None:
+        endEcc = 0
+    if endInc is None:
+        endInc = 0
+    if endArgP is None:
+        endArgP = 0
+    if endLAN is None:
+        endLAN = 0
+    if endMo is None:
+        endMo = 0
+    if endEpoch is None:
+        endEpoch = 0
+    
     sOrb = Orbit(startA, startEcc, startInc*math.pi/180, startArgP*math.pi/180,
                  startLAN*math.pi/180, startMo, sBody, startEpoch)
-    eBody = [x for x in system if x.name == endBodyName][0]
     eOrb = Orbit(endA, endEcc, endInc*math.pi/180, endArgP*math.pi/180,
                  endLAN*math.pi/180, endMo, eBody, endEpoch)
-    
     # grab day and year formats
     day = dateFormat['day']         # hours per day
     year= dateFormat['year']        # days per year
     
     # prepare start and flight time bounds
-    minStartTime = 3600*((minStartDay-1) * day +                            \
+    if not (minStartYear is None or minStartYear < 0):
+        if (minStartDay is None or minStartDay < 0):
+            minStartDay = 0
+        minStartTime = 3600*((minStartDay-1) * day +                        \
                     (minStartYear-1) * day * year);
-    if not (maxStartDay is None or maxStartYear is None):
+    else:
+        minStartYear = 0
+        minStartDay = 0
+        minStartTime = 0
+    if not (maxStartYear is None or maxStartYear < minStartYear):
+        if (maxStartDay is None or maxStartDay < 0):
+            maxStartDay = year
         maxStartTime = 3600*((maxStartDay-1) * day +                        \
                     (maxStartYear-1) * day * year);
+        if maxStartTime < minStartTime:
+            maxStartTime = None
     else:
         maxStartTime = None
-    if not (minFlightDays is None):
+    if not (minFlightDays is None or minFlightDays <= 0):
         minFlightTime = 3600*(minFlightDays * day)
     else:
         minFlightTime = None
-    if not (maxFlightDays is None):
+    if not (maxFlightDays is None or maxFlightDays <= 0):
         maxFlightTime = 3600*(maxFlightDays* day)
+        if not minFlightTime is None:
+            if maxFlightTime < minFlightTime:
+                maxFlightTime = None
     else:
         maxFlightTime = None
     
@@ -854,11 +1004,18 @@ def update_porkchop_data(nClicks, system, dateFormat,
     else:
         noInsertion = True
     
+    # make sure number of points sampled is a valid number
+    if numPointsSampled is None:
+        numPointsSampled = 25
+    elif numPointsSampled <2:
+        numPointsSampled = 2
+        
     # prepare porkchop table
     porkTable = PorkchopTable(sOrb, eOrb, transferType, noInsertion,
                               cheapStartOrb, cheapEndOrb,
                               minStartTime, maxStartTime,
-                              minFlightTime, maxFlightTime, 26, 26)
+                              minFlightTime, maxFlightTime,
+                              numPointsSampled, numPointsSampled)
     
     return jsonpickle.encode(porkTable)
 
@@ -942,7 +1099,7 @@ def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, prevState):
                         colorbar = dict(
                             tickvals = colorVals,
                             ticktext = colorLabels,
-                            title='Estimated Total Δv (m/s)',),
+                            title='Δv (m/s)',),
                         contours_coloring='heatmap',
                         customdata = bs**logdV,
                         hovertemplate = "Δv = " +
@@ -955,7 +1112,7 @@ def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, prevState):
     fig.update_yaxes(title_text='Transfer duration (days)',
                      visible = True)
     fig.update_layout(
-        margin=dict(l=0, r=0, t=15, b=30),
+        margin=dict(l=0, r=0, t=10, b=30),
         )
     add_lines(fig,
               chosenTransfer.startTime/(day*3600),
@@ -1160,57 +1317,66 @@ def update_transfer_plot(chosenTransfer, dateFormat):
     if chosenTransfer is None:
         return fig
     chosenTransfer = jsonpickle.decode(chosenTransfer)
-    times = np.linspace(chosenTransfer.get_departure_burn_time(),           \
-                        chosenTransfer.startTime +                          \
-                        chosenTransfer.flightTime, 501);
-    if chosenTransfer.planeChange is True:
-        trTimes = np.linspace(chosenTransfer.startTime,                     \
-                              chosenTransfer.startTime +                    \
-                              chosenTransfer.planeChangeDT, 501);
-        trPCTimes = np.linspace(chosenTransfer.startTime +                  \
-                                chosenTransfer.planeChangeDT,               \
-                                chosenTransfer.startTime +                  \
-                                chosenTransfer.flightTime, 501);
-    else:
-        trTimes = np.linspace(chosenTransfer.startTime,                     \
-                              chosenTransfer.startTime +                    \
-                              chosenTransfer.flightTime, 501);
     
-    maxVals = [add_orbit(fig, chosenTransfer.transferOrbit, trTimes,        \
-                         dateFormat, name = 'Transfer')];
+    startTime = chosenTransfer.get_departure_burn_time()
+    endTime = chosenTransfer.startTime + chosenTransfer.flightTime
+    
+    if chosenTransfer.planeChange is True:
+        pcTime = chosenTransfer.startTime + chosenTransfer.planeChangeDT
+    else:
+        pcTime = endTime
+    
+    # record highest altitudes to use as axis limits
+    # add transfer orbit
+    maxVals = [add_orbit(fig, chosenTransfer.transferOrbit, startTime,      \
+                         pcTime, 201, dateFormat, name = 'Transfer')];
+    
+    # if it exists, add the transfer orbit after plane change
     if chosenTransfer.planeChange is True:
         maxVals = np.append(maxVals,
                             add_orbit(fig, chosenTransfer.transferOrbitPC,  \
-                                      trPCTimes, dateFormat,                \
+                                      pcTime, endTime, 201, dateFormat,     \
                                       name = 'Transfer (plane change)'));
     
-    if (chosenTransfer.endOrbit.prim == chosenTransfer.transferOrbit.prim):
-        add_orbit(fig, chosenTransfer.endOrbit, times, dateFormat,          \
-                  name = 'Target');
+    # if the starting orbit is around the primary body, add it
+    if (chosenTransfer.startOrbit.prim == chosenTransfer.transferOrbit.prim):
+        add_orbit(fig, chosenTransfer.startOrbit, startTime, endTime, 201,  \
+                  dateFormat, name = 'Start');
     
+    # if the target orbit is around the primary body, add it
+    if (chosenTransfer.endOrbit.prim == chosenTransfer.transferOrbit.prim):
+        add_orbit(fig, chosenTransfer.endOrbit, startTime, endTime, 201,    \
+                  dateFormat, name = 'Target');
+    
+    # add orbits/bodies for all satellites around the primary body
     for bd in chosenTransfer.transferOrbit.prim.satellites:
-        if bd.orb.get_period() <                                            \
-        (chosenTransfer.flightTime + chosenTransfer.ejectionDT):
-            bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
-                                  chosenTransfer.get_departure_burn_time() +\
-                                  bd.orb.get_period(),                      \
-                                  501);
-        else:
-            bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
-                                  chosenTransfer.startTime +                \
-                                  chosenTransfer.flightTime,                \
-                                  501);
+        # if bd.orb.get_period() <                                            \
+        # (chosenTransfer.flightTime + chosenTransfer.ejectionDT):
+        #     bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
+        #                           chosenTransfer.get_departure_burn_time() +\
+        #                           bd.orb.get_period(),                      \
+        #                           501);
+        # else:
+        #     bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
+        #                           chosenTransfer.startTime +                \
+        #                           chosenTransfer.flightTime,                \
+        #                           501);
         maxVals = np.append(maxVals,
-                            add_orbit(fig, bd.orb, bdTimes, dateFormat,
-                                      bd.color, bd.name)
-                            )
+                            add_orbit(fig, bd.orb, startTime, endTime, 201, \
+                                      dateFormat, bd.color, bd.name));
         add_body(fig, bd, chosenTransfer.get_departure_burn_time())
     
+    # add the primary body at the origin
     add_primary(fig, chosenTransfer.transferOrbit.prim)
+    
+    # finalize axis limit value
     lim = np.amax(maxVals)*1.25
+    
+    # add transfer phase angle illustration
     add_transfer_phase_angle(fig, chosenTransfer,
                              1.5*chosenTransfer.transferOrbit.a)
     
+    # update the plot layout with blank axes, dark grey background, etc
     fig.update_layout(
         margin=dict(l=0, r=0, t=15, b=30),
         paper_bgcolor="rgb(50, 50, 50)",
@@ -1261,55 +1427,54 @@ def update_ejection_plot(chosenTransfer, dateFormat):
     if chosenTransfer.ejectionTrajectory is None:
         return fig
     
-    parkTimes = np.linspace(chosenTransfer.get_departure_burn_time() -      \
-                            chosenTransfer.startOrbit.get_period(),         \
-                            chosenTransfer.get_departure_burn_time(),       \
-                            501);
+    escTime = chosenTransfer.startTime
+    burnTime = chosenTransfer.get_departure_burn_time()
     
-    ejTimes = np.linspace(chosenTransfer.get_departure_burn_time(),         \
-                          chosenTransfer.startTime,                         \
-                          501);
+    # add ejection trajectory
+    add_orbit(fig, chosenTransfer.ejectionTrajectory, burnTime, escTime,    \
+              501, dateFormat, name = 'Ejection');
     
-    ejTimesGeom = np.geomspace(1,                                           \
-                               chosenTransfer.ejectionDT,                   \
-                               501) +                                       \
-                  chosenTransfer.get_departure_burn_time() - 1;
-    
-    add_orbit(fig, chosenTransfer.ejectionTrajectory, ejTimesGeom,          \
-              dateFormat, name = 'Ejection');
+    # record highest altitudes for 3D plot limits
     maxVals = [10*chosenTransfer.startOrbit.a]
-    maxVals = np.append(maxVals,
-                          add_orbit(fig, chosenTransfer.startOrbit, 
-                                    parkTimes, None,
-                                    name = 'Starting Orbit', style = 'dot',
-                                    fade = False)
-                          )
     
+    # add starting orbit
+    maxVals = np.append(maxVals,
+                        add_orbit(fig, chosenTransfer.startOrbit,           \
+                        burnTime - chosenTransfer.startOrbit.get_period()/2,\
+                        burnTime + chosenTransfer.startOrbit.get_period()/2,\
+                        201, dateFormat,                                    \
+                        name = 'Starting Orbit', style = 'dot', fade = False)
+                        );
+    
+    # add bodies/orbits of satellite bodies around the primary body
     for bd in chosenTransfer.ejectionTrajectory.prim.satellites:
-        if bd.orb.get_period() < chosenTransfer.ejectionDT:
-            bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
-                                  chosenTransfer.get_departure_burn_time() +\
-                                  bd.orb.get_period(),                      \
-                                  501);
-        else:
-            bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
-                                  chosenTransfer.startTime,                 \
-                                  501);
+        # if bd.orb.get_period() < chosenTransfer.ejectionDT:
+        #     bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
+        #                           chosenTransfer.get_departure_burn_time() +\
+        #                           bd.orb.get_period(),                      \
+        #                           501);
+        # else:
+        #     bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
+        #                           chosenTransfer.startTime,                 \
+        #                           501);
         maxVals = np.append(maxVals,
-                            add_orbit(fig, bd.orb, bdTimes, dateFormat,
-                                      bd.color, bd.name)
-                            )
+                            add_orbit(fig, bd.orb, burnTime, escTime, 201,  \
+                                      dateFormat, bd.color, bd.name));
         add_body(fig, bd, chosenTransfer.get_departure_burn_time())
     
+    # finalize value for axis limits
     lim = np.amax(maxVals)*1.25
-    if lim < chosenTransfer.startOrbit.a * 2:
-        lim = chosenTransfer.startOrbit.a * 2
     
+    # add ejection burn angle-from-prograde illustration
     add_ejection_angle(fig, chosenTransfer)
-    add_prograde_trace(fig, chosenTransfer, chosenTransfer.startOrbit.prim,
-                       ejTimes - chosenTransfer.ejectionDT/2)
+    
+    # add trace for primary body's position centered at the burn time
+    add_prograde_trace(fig, chosenTransfer, chosenTransfer.startOrbit.prim, \
+                       burnTime - chosenTransfer.ejectionDT,                \
+                       burnTime + chosenTransfer.ejectionDT, 201);
     add_primary(fig, chosenTransfer.ejectionTrajectory.prim)
     
+    # update the plot layout with blank axes, dark grey background, etc
     fig.update_layout(
         margin=dict(l=0, r=0, t=15, b=30),
         paper_bgcolor="rgb(50, 50, 50)",
@@ -1363,53 +1528,67 @@ def update_insertion_plot(chosenTransfer, dateFormat):
     
     encTime = chosenTransfer.startTime + chosenTransfer.flightTime
     burnTime = chosenTransfer.get_arrival_burn_time()
-    
-    parkTimes = np.linspace(burnTime,                                       \
-                            chosenTransfer.endOrbit.get_period() + burnTime,\
-                            501);
-    
-    inTimes = np.linspace(encTime, burnTime, 501);
-    
-    inTimesGeom = np.geomspace(-chosenTransfer.insertionDT, -1, 501) +      \
-                  burnTime + 1;
     if chosenTransfer.ignoreInsertion:
-        inTimesGeom = np.append(                                            \
-            inTimesGeom,                                                    \
-            np.geomspace(1,chosenTransfer.insertionDT,501) + burnTime - 1);
+        endTime = burnTime + chosenTransfer.insertionDT
+    else:
+        endTime = burnTime
     
-    add_orbit(fig, chosenTransfer.insertionTrajectory, inTimesGeom,          \
-              dateFormat, name = 'Insertion');
+    # parkTimes = np.linspace(burnTime,                                       \
+    #                         chosenTransfer.endOrbit.get_period() + burnTime,\
+    #                         501);
+    
+    # inTimes = np.linspace(encTime, burnTime, 501);
+    
+    # inTimesGeom = np.geomspace(-chosenTransfer.insertionDT, -1, 501) +      \
+    #               burnTime + 1;
+    
+    # if chosenTransfer.ignoreInsertion:
+    #     inTimesGeom = np.append(                                            \
+    #         inTimesGeom,                                                    \
+    #         np.geomspace(1,chosenTransfer.insertionDT,501) + burnTime - 1);
+    
+    # add insertion trajectory
+    add_orbit(fig, chosenTransfer.insertionTrajectory, encTime, endTime,    \
+              501, dateFormat, name = 'Insertion');
+    
+    # record highest altitudes for 3D plot limits
     maxVals = [10*chosenTransfer.endOrbit.a]
     
+    # add ending orbit
     if not chosenTransfer.ignoreInsertion:
-        maxVals = np.append(maxVals,
-                              add_orbit(fig, chosenTransfer.endOrbit, 
-                                        parkTimes, None,
-                                        name = 'Ending Orbit', style = 'dot',
-                                        fade = False)
-                              )
+        maxVals=np.append(maxVals,
+                          add_orbit(fig, chosenTransfer.endOrbit,           \
+                          burnTime - chosenTransfer.endOrbit.get_period()/2,\
+                          burnTime + chosenTransfer.endOrbit.get_period()/2,\
+                                    201, dateFormat,                        \
+                                    name = 'Ending Orbit', style = 'dot',   \
+                                    fade = False));
     
+    # add bodies/orbits of satellite bodies around the primary body
     for bd in chosenTransfer.insertionTrajectory.prim.satellites:
-        if bd.orb.get_period() < chosenTransfer.insertionDT:
-            bdTimes = np.linspace(encTime,                                  \
-                                  encTime + bd.orb.get_period(),            \
-                                  501);
-        else:
-            bdTimes = np.linspace(encTime, burnTime, 501);
+        # if bd.orb.get_period() < chosenTransfer.insertionDT:
+        #     bdTimes = np.linspace(encTime,                                  \
+        #                           encTime + bd.orb.get_period(),            \
+        #                           501);
+        # else:
+        #     bdTimes = np.linspace(encTime, burnTime, 501);
         maxVals = np.append(maxVals,
-                            add_orbit(fig, bd.orb, bdTimes, dateFormat,
-                                      bd.color, bd.name)
-                            )
+                            add_orbit(fig, bd.orb, encTime, endTime, 201,   \
+                                      dateFormat, bd.color, bd.name));
         add_body(fig, bd, encTime)
     
+    # finalize value for axis limits
     lim = np.amax(maxVals)*1.25
     if lim < chosenTransfer.startOrbit.a * 2:
         lim = chosenTransfer.startOrbit.a * 2
     
-    add_prograde_trace(fig, chosenTransfer, chosenTransfer.endOrbit.prim,
-                       inTimes - chosenTransfer.insertionDT/2)
+    # add trace for primary body's position centered at the burn time
+    add_prograde_trace(fig, chosenTransfer, chosenTransfer.endOrbit.prim,   \
+                       burnTime - chosenTransfer.insertionDT,               \
+                       burnTime + chosenTransfer.insertionDT, 201);
     add_primary(fig, chosenTransfer.insertionTrajectory.prim)
     
+    # update the plot layout with blank axes, dark grey background, etc
     fig.update_layout(
         margin=dict(l=0, r=0, t=15, b=30),
         paper_bgcolor="rgb(50, 50, 50)",
