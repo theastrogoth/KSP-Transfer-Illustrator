@@ -12,6 +12,7 @@ from orbit import Orbit
 from body import Body
 from transfer import Transfer
 from prktable import PorkchopTable
+import time
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
@@ -231,6 +232,7 @@ def add_primary(figure, bd):
                                 name = bd.name,
                                 showlegend = False,
                                 hovertemplate = "Central body"
+                                # hoverinfo = 'skip'
                                     ))
     
     # figure.add_trace(go.Scatter3d(
@@ -429,48 +431,130 @@ def add_prograde_trace(figure, transfer, body,
 
 app.layout = html.Div(className='row', children=[
     html.Div(className='four columns', children=[
-        dcc.Tabs(id='tabs', value='instruct', children=[
+        dcc.Tabs(id='tabs', value='params', children=[
             dcc.Tab(
                 label='Instructions',
                 value='instruct',
                 children = html.Div(className='ctrl-tab', children = [
                     html.H3('KSP Transfer Illustrator'),
-                    html.P(
-                        'Use the KSP transfer illustrator to calculate '
-                        'optimal departure and arrival dates for transfers '
-                        'between celestial bodies, and visualize ejection '
-                        'and transfer orbits. '
-                        ),
-                    html.P(
-                        'Select the details of the transfer in the '
-                        'Mission Parameters tab. Custom orbits can be '
-                        'entered in the Advanced Settings tab. Press the '
-                        '"Plot!" button to generate a Porkchop plot.'
-                        ),
-                    html.P(
-                        'Once a Porkchop plot has been generated, you can '
-                        'click anywhere in the plot to view information about '
-                        'the transfer with the corresponding start time and '
-                        'flight duration. The Orbit plots can be rotated '
-                        'and zoomed in/out. Plotted orbits have hover info '
-                        'showing the radius of the orbit and time at each '
-                        'position.'
-                        ),
-                    html.P(
-                        'Due to the limits of Heroku, there is a very coarse '
-                        'sampling of start/flight times in the Porkchop plot. '
-                        'To improve control of transfer selection or ensure '
-                        'you have the best start/flight times, adjust the '
-                        'range of times in the Advanced Settings tab to '
-                        'zoom in on a region of interest.'
-                        ),
-                    html.P(
-                        'I plan on improving this as I figure out better ways '
-                        'to deploy this as a web app. Please leave feedback '
-                        'about any bugs you encouter or suggestions you have '
-                        'on the GitHub repository for this project:'
-                        ),
-                    html.A(html.Button('Submit feedback'),
+                    dcc.Markdown('''
+                                 The KSP Transer Illustrator app calculates 
+                                 patched-conic transfer trajectories between 
+                                 celestial bodies in Kerbal Space Program. 
+                                 The app also generates interactive 3D plots 
+                                 for each conic in the transfer, which can be 
+                                 rotated, zoomed in/out, and panned. Plotted 
+                                 orbits also contain hover-text with useful
+                                 information.  
+                                   
+                                 Once a Porkchop plot has been generated, you 
+                                 can click anywhere in the plot to view 
+                                 information about the transfer with the 
+                                 corresponding start time and flight duration.
+                                 The 3D orbit plots will be updated when you 
+                                 do this.  
+                                   
+                                 #### Mission Parameters  
+                                 
+                                 **Date Format**: Display times according to 
+                                 the Kerbin or Earth calendars.  
+                                   
+                                 **System**: Choice of solar system.  
+                                   
+                                 **Starting Body**: Reference body for the 
+                                 starting orbit. Any body in the system is 
+                                 valid.  
+                                   
+                                 **Ending Body**: Reference body for the 
+                                 ending orbit. Valid options include the 
+                                 starting body and its satellite bodies, and 
+                                 the starting body's reference body and its 
+                                 satellite bodies.  
+                                   
+                                 **Starting altitude**: Altitude of the 
+                                 starting orbit over its reference body.
+                                 The starting orbit is assumed to be circular 
+                                 and equatorial unless custom parameters are 
+                                 entered in the Advanced Settings tab.  
+                                   
+                                 **Ending altitude**: Altitude of the ending 
+                                 orbit over its reference body. The ending 
+                                 orbit is assumed to be circular and 
+                                 equatorial unless custom parameters are 
+                                 are entered in the Advanced Settings tab.  
+                                   
+                                 **Cheapest starting orbit**: Aligns orbital 
+                                 plane of the starting orbit to the ejection 
+                                 trajectory to reduce Δv cost. Useful if you 
+                                 haven't yet launched your craft into orbit.  
+                                   
+                                 **Cheapest ending orbit**: Aligns orbital 
+                                 plane of the ending orbit to the insertion 
+                                 trajectory to minimize Δv cost. Useful if you 
+                                 are not aiming for a specific orbit at the 
+                                 target body.  
+                                   
+                                 **No insertion burn**: Excludes a capture 
+                                 burn at the target body. Useful for flybys 
+                                 or aerocaptures.  
+                                   
+                                 **Transfer Type**: Choice of inclusion of a 
+                                 plane change maneuver.  
+                                   
+                                 **Earliest Departure Year/Day**: Specifies 
+                                 earlist time to search for a transfer.  
+                                   
+                                 #### Advanced Settings  
+                                 
+                                 **Departure Time and Flight Duration**: 
+                                 Use these settings to customize the times to 
+                                 be sampled when computing transfsers. If the 
+                                 app fails to due computation timeout, reduce 
+                                 the number of points sampled per axis.  
+                                   
+                                 **Custom Starting/Ending Orbits**: Keplerian 
+                                 elements defining starting and ending orbits. 
+                                 These can be copy/pasted from HyperEdit.  
+                                   
+                                 #### Notes
+                                 
+                                 For all orbit details displayed in the app, 
+                                 the epoch is t=0 seconds.  
+                                   
+                                 The app ignores parking orbits' mean anomaly 
+                                 at epoch when calculating transfers, so you 
+                                 may need to adjust the start time manually to 
+                                 get a transfer where your craft is at the 
+                                 burn position at the right time. Hover over 
+                                 the starting orbit in the 3D plot to check 
+                                 its mean anomaly. For lower altitude parking 
+                                 orbits this difference can usually be 
+                                 ignored.  
+                                   
+                                 The app attempts to accurately "patch" 
+                                 trajectories across SOI changes to get highly
+                                 accurate trajectories, but the patching 
+                                 sometimes fails. A warning message is 
+                                 is displayed when this happens.  
+                                   
+                                 Due to the limits of Heroku (and my 
+                                 knowledge of app development), this app fails 
+                                 when any calculations take longer than 30s. 
+                                 If this happens, try decreasing the 
+                                 number of points sampled per axis in the 
+                                 Advanced Settings tab.  
+                                   
+                                 I plan on improving this as I learn more 
+                                 about astrodynamics and app deployment. 
+                                 Please leave feedback about any inaccurate 
+                                 trajectories, any bugs you encounter, or 
+                                 suggestions you have at the KSP Forum thread 
+                                 for this project or its GitHub repository:
+                                 '''),
+                    html.A(html.Button('KSP Forum Thread'),
+                     href='https://forum.kerbalspaceprogram.com/index.php?/topic/195405-ksp-transfer-illustrator/'
+                           ),
+                    html.A(html.Button('Github'),
                      href='https://github.com/theastrogoth/KSP-Transfer-Illustrator/issues'
                            ),
                     ])
@@ -512,10 +596,10 @@ app.layout = html.Div(className='row', children=[
                         id = 'endingBody-dropdown',
                         value = 'Duna'
                         ),
-                    html.Label('Starting parking altitude (km)'),
+                    html.Label('Starting altitude (km)'),
                     dcc.Input(id = 'startPark-input', value=100, 
                               type='number'),
-                    html.Label('Ending parking altitude (km)'),
+                    html.Label('Ending altitude (km)'),
                     dcc.Input(id = 'endPark-input', value=100, 
                               type='number'),
                     dcc.Checklist(
@@ -910,6 +994,8 @@ def update_porkchop_data(nClicks, system, dateFormat,
                           minStartYear, minStartDay, maxStartYear, maxStartDay,
                           minFlightDays, maxFlightDays, numPointsSampled):
     
+    t0 = time.time()
+    
     # return empty plot on page load
     if nClicks == 0:
         return dash.no_update
@@ -1017,6 +1103,9 @@ def update_porkchop_data(nClicks, system, dateFormat,
                               minFlightTime, maxFlightTime,
                               numPointsSampled, numPointsSampled)
     
+    t1 = time.time()
+    print(t1-t0)
+    
     return jsonpickle.encode(porkTable)
 
 @app.callback(
@@ -1026,6 +1115,8 @@ def update_porkchop_data(nClicks, system, dateFormat,
     [State('dateFormat-div','children')]
     )
 def update_chosen_tranfser(porkTable, clickData, dateFormat):
+    
+    t0 = time.time()
     
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -1037,6 +1128,9 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat):
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'porkchop-div':
         transfer = porkTable.get_best_transfer()
         transfer.genetic_refine()
+        # transfer.adjust_times()
+        t1 = time.time()
+        print(t1-t0)
         return jsonpickle.encode(transfer)
     
     # if the update comes from user click data, get the chosen transfer
@@ -1048,6 +1142,9 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat):
         flightTime = flightDays * 3600 * day
         transfer = porkTable.get_chosen_transfer (startTime, flightTime)
         transfer.genetic_refine()
+        # transfer.adjust_times()
+        t1 = time.time()
+        print(t1-t0)
         return jsonpickle.encode(transfer)
 
 @app.callback(

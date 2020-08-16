@@ -870,6 +870,63 @@ class Transfer:
             self.endOrbit.map_angle(self.endOrbit.mo + dMeanAnom);
     
     
+    def adjust_times(self, tol = 10, maxIt = 10):
+        """Modify start time to match mean anomaly of start orbit with burn.
+        """
+        
+        originalStartTime = self.startTime
+        originalFlightTime = self.flightTime
+        err = tol+1
+        it = 0
+        while err>tol:
+            it = it+1
+            if it > maxIt:
+                self.startTime = originalStartTime
+                self.flightTime = originalFlightTime
+                self.genetic_refine()
+                return
+            # start orbit difference in burn location times
+            sBurnTime = self.get_departure_burn_time()
+            
+            sTrueAnom = self.startOrbit.get_angle_in_orbital_plane(         \
+                self.startOrbit.get_time(0),                                \
+                self.ejectionTrajectory.get_state_vector(sBurnTime)[0]);
+            
+            dSMeanAnom = -self.startOrbit.get_mean_anomaly(                 \
+                                    self.startOrbit.get_time(sTrueAnom)) +  \
+                        self.startOrbit.get_mean_anomaly(sBurnTime);
+            if (dSMeanAnom > math.pi and self.startOrbit.ecc < 1):
+                dSMeanAnom = dSMeanAnom - 2*math.pi
+            
+            dSTime = self.startOrbit.get_period() * dSMeanAnom / 2 / math.pi
+            
+            # end orbit difference in burn location times
+            eBurnTime = self.get_arrival_burn_time()
+            
+            eTrueAnom = self.endOrbit.get_angle_in_orbital_plane(           \
+                self.endOrbit.get_time(0),                                  \
+                self.insertionTrajectory.get_state_vector(eBurnTime)[0]);
+            
+            dEMeanAnom = -self.endOrbit.get_mean_anomaly(                   \
+                                    self.endOrbit.get_time(eTrueAnom)) +    \
+                        self.endOrbit.get_mean_anomaly(eBurnTime);
+            if (dEMeanAnom > math.pi and self.endOrbit.ecc < 1):
+                dEMeanAnom = dEMeanAnom - 2*math.pi
+            
+            dETime = self.endOrbit.get_period() * dEMeanAnom / 2 / math.pi
+            
+            # get combined time offsets
+            err = abs(dSTime) + abs(dETime)
+            
+            # adjust start time and flight time to get desired shift 
+            # in burn times
+            self.startTime = self.startTime + dSTime
+            self.flightTime = self.flightTime + dETime - dSTime
+            
+            # get new transfer details
+            self.genetic_refine()
+    
+    
     def get_departure_burn_time(self):
         """Get the time since epoch of departure burn.
         

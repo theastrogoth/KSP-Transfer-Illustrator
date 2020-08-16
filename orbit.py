@@ -16,11 +16,23 @@ class Orbit:
         mo (float): mean anomaly (radians) at epoch, t=0 seconds.
         prim (Body): the body at the node (in the middle) of the orbit
         timeshift (float): relative time in seconds of previous epoch
+        period (float): length of an orbital period (s)
+        X (array): first basis vector
+        Y (array): second basis vector
+        Z (array): third basis vector (normal to orbital plane)
         
     """
     
     def __init__(self, a=None, ecc=None, inc=None, 
                  argp=None, lan=None, mo=None, prim=None, timeShift=None):
+        
+        # These attributes will be filled in via methods
+        self.period = None
+        self.X = None
+        self.Y = None
+        self.Z = None
+        
+        # These attributes are set at initialization from input
         self.a = a
         self.ecc = ecc
         self.inc = inc
@@ -33,7 +45,6 @@ class Orbit:
         else:
             self.mo = self.map_angle(mo - timeShift*2*math.pi               \
                                      / self.get_period())
-                    
         
     @classmethod
     def from_state_vector(cls,pos,vel,t,primaryBody):
@@ -311,8 +322,9 @@ class Orbit:
         Returns:
             orbital period (seconds)
         """
-        
-        return 2*math.pi * math.sqrt((abs(self.a)**3)/self.prim.mu)
+        if self.period is None:
+            self.period = 2*math.pi * math.sqrt((abs(self.a)**3)/self.prim.mu)
+        return self.period
     
     
     def get_mean_anomaly(self, t):
@@ -512,6 +524,8 @@ class Orbit:
             Y = np.array([0, 1, 0])
             Z = np.array([0, 0, 1])
             return X, Y, Z
+        elif not self.X is None:
+            return self.X, self.Y, self.Z
         else:
             # Get state vector at periapsis
             rp, vp = self.get_state_vector(self.get_time(0))
@@ -532,6 +546,11 @@ class Orbit:
             # Determine second basis through cross product of the others
             Y = np.cross(Z,X)
             Y = Y / norm(Y)
+            
+            self.X = X
+            self.Y = Y
+            self.Z = Z
+            
             return X, Y, Z
     
     
