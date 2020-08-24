@@ -4,6 +4,7 @@ import numpy as np
 from numpy.linalg import norm
 from orbit import Orbit
 from body import Body
+from copy import copy
 
 class Transfer:
     """Orbital transfer from a starting orbit to an ending orbit.
@@ -19,6 +20,9 @@ class Transfer:
             park orbit used is the semimajor axis
         cheapEndOrb (bool): if true, the only parameter of the ending park
             orbit used is the semimajor axis
+        matchStartMo (bool): if true, start and flight times will be adjusted
+            to give a transfer that matches the starting orbits mean anomaly
+            at epoch
         startPos (vector): if provided, fixes start location of the transfer
                 orbit given position
         endPos (vector): : if provided, fixes target location of the transfer
@@ -49,7 +53,8 @@ class Transfer:
     
     def __init__(self, startOrbit, endOrbit, startTime, flightTime, 
                  planeChange = False, ignoreInsertion = False,
-                 cheapStartOrb = False, cheapEndOrb = True):
+                 cheapStartOrb = False, cheapEndOrb = True, 
+                 matchStartMo = False):
         
         # Assign input attributes
         self.startOrbit = startOrbit
@@ -60,6 +65,9 @@ class Transfer:
         self.ignoreInsertion = ignoreInsertion
         self.cheapStartOrb = cheapStartOrb
         self.cheapEndOrb = cheapEndOrb
+        
+        self.originalStartOrbit = copy(self.startOrbit)
+        self.originalEndOrbit = copy(self.endOrbit)
         
         # These attributes get defined here but are filled in with methods
         self.startPos = None
@@ -307,24 +315,38 @@ class Transfer:
             rPC, vPCi = transferOrbit.get_state_vector(tPC)
             vPCiPlane = transferOrbit.from_primary_to_orbit_bases(vPCi)
             
-            # Calculate the inclination change needed for the maneuver
-            nTr = np.cross(rPC, vPCi)
-            nTr = nTr/norm(nTr)             # normal vector to pre-burn orbit
-            nTrPC = np.cross(rPC, rEnd)
-            nTrPC = nTrPC/norm(nTrPC)       # normal vector to post-burn orbit
+            ## Calculate the inclination change needed for the maneuver
+            # nTr = np.cross(rPC, vPCi)
+            # nTr = nTr/norm(nTr)             # normal vector to pre-burn orbit
             
-            # normal vector to plane after burn
-            incPC = math.acos(np.dot(nTr,nTrPC))
-            if np.dot(nTrPC, vPCi) > 0:
-                incPC = -incPC
+            # Get basis vectors for orbit after plane change
+            zPC = np.cross(rPC, rEnd)
+            zPC = zPC/norm(zPC)             # normal vector to post-burn orbit
+            xPC= np.array([1, 0, 0])        # assumed celestial longitude
+            xPC = xPC - np.dot(xPC,zPC) * zPC/norm(zPC)**2
+            if norm(xPC) < 1E-15:
+                xPC = np.array([0, math.copysign(1,zPC[0]), 0])
+                zPC = np.array([math.copysign(1,zPC[0]), 0, 0])
+            else:
+                xPC = xPC / norm(xPC)
+            yPC = np.cross(zPC,xPC)
+            yPC = yPC/norm(yPC)
             
-            # Rotate velocity vector prior to burn to get vector after burn
-            vPCfPlane = np.array([math.cos(incPC) * vPCiPlane[0],           \
-                                  math.cos(incPC) * vPCiPlane[1],           \
-                                  math.sin(incPC) * norm(vPCiPlane)]);
+            # rotate velocity vector to new plane
+            vPCf = transferOrbit.rotate_to_bases(vPCiPlane, xPC, yPC, True)
             
-            # Get the velocity after plane change in the primary bases
-            vPCf = transferOrbit.from_orbit_to_primary_bases(vPCfPlane)
+            # # normal vector to plane after burn
+            # incPC = math.acos(np.dot(nTr,nTrPC))
+            # if np.dot(nTrPC, vPCi) > 0:
+            #     incPC = -incPC
+            
+            # # Rotate velocity vector prior to burn to get vector after burn
+            # vPCfPlane = np.array([math.cos(incPC) * vPCiPlane[0],           \
+            #                       math.cos(incPC) * vPCiPlane[1],           \
+            #                       math.sin(incPC) * norm(vPCiPlane)]);
+            
+            # # Get the velocity after plane change in the primary bases
+            # vPCf = transferOrbit.from_orbit_to_primary_bases(vPCfPlane)
             
             # Define second part of transfer with position and velocity
             # vectors after the plane change maneuver
@@ -382,15 +404,10 @@ class Transfer:
             
             # Set start and end position for refinining
             self.startPos =                                                 \
-                self.transferOrbit.get_state_vector(self.startTime)[0];
-            if self.planeChange:
-                self.endPos =                                               \
-                    self.transferOrbitPC.get_state_vector(self.startTime +  \
-                                                          self.flightTime)[0];
-            else:
-                self.endPos =                                               \
-                    self.transferOrbit.get_state_vector(self.startTime +    \
-                                                        self.flightTime)[0];
+                self.startOrbit.get_state_vector(self.startTime)[0];
+            self.endPos =                                                   \
+                self.endOrbit.get_state_vector(self.startTime +             \
+                                               self.flightTime)[0];
         
         # Second case: starting in orbit around a body and transferring to a
         # parking orbit around its primary body
@@ -428,14 +445,9 @@ class Transfer:
             self.startPos =                                                 \
               self.startOrbit.prim.orb.get_state_vector(self.startTime)[0] +\
                 self.ejectionTrajectory.get_state_vector(self.startTime)[0];
-            if self.planeChange:
-                self.endPos =                                               \
-                    self.transferOrbitPC.get_state_vector(self.startTime +  \
-                                                          self.flightTime)[0];
-            else:
-                self.endPos =                                               \
-                    self.transferOrbit.get_state_vector(self.startTime +    \
-                                                        self.flightTime)[0];
+            self.endPos =                                                   \
+                self.endOrbit.get_state_vector(self.startTime +             \
+                                               self.flightTime)[0];
         
         # Third case: starting in orbit around a body and transferring to a
         # parking orbit around one of its satellites
@@ -463,7 +475,7 @@ class Transfer:
         
             # Set start and end position for refinining
             self.startPos =                                                 \
-                self.transferOrbit.get_state_vector(self.startTime)[0];
+                self.startOrbit.get_state_vector(self.startTime)[0];
             self.endPos =                                                   \
               self.endOrbit.prim.orb.get_state_vector(                      \
                   self.startTime + self.flightTime)[0] +                    \
@@ -834,7 +846,7 @@ class Transfer:
                                         self.endOrbit.prim);
     
     
-    def adjust_start_orbit(self):
+    def adjust_start_orbit_mo(self):
         """Modify starting orbit to have mean anomaly at epoch matching burn.
         """
         
@@ -852,7 +864,7 @@ class Transfer:
             self.startOrbit.map_angle(self.startOrbit.mo + dMeanAnom);
     
     
-    def adjust_end_orbit(self):
+    def adjust_end_orbit_mo(self):
         """Modify starting orbit to have mean anomaly at epoch matching burn.
         """
         
@@ -870,61 +882,52 @@ class Transfer:
             self.endOrbit.map_angle(self.endOrbit.mo + dMeanAnom);
     
     
-    def adjust_times(self, tol = 10, maxIt = 10):
-        """Modify start time to match mean anomaly of start orbit with burn.
-        """
-        
+    def match_start_mean_anomaly(self, tol = 0.1, maxIt = 20):
+        if self.ejectionTrajectory is None:
+            self.genetic_refine()
+            return
+        self.startOrbit = self.originalStartOrbit
         originalStartTime = self.startTime
-        originalFlightTime = self.flightTime
-        err = tol+1
         it = 0
-        while err>tol:
+        err = tol+1
+        while abs(err) > tol:
             it = it+1
-            if it > maxIt:
+            if it>maxIt:
                 self.startTime = originalStartTime
-                self.flightTime = originalFlightTime
                 self.genetic_refine()
                 return
-            # start orbit difference in burn location times
-            sBurnTime = self.get_departure_burn_time()
-            
-            sTrueAnom = self.startOrbit.get_angle_in_orbital_plane(         \
-                self.startOrbit.get_time(0),                                \
-                self.ejectionTrajectory.get_state_vector(sBurnTime)[0]);
-            
-            dSMeanAnom = -self.startOrbit.get_mean_anomaly(                 \
-                                    self.startOrbit.get_time(sTrueAnom)) +  \
-                        self.startOrbit.get_mean_anomaly(sBurnTime);
-            if (dSMeanAnom > math.pi and self.startOrbit.ecc < 1):
-                dSMeanAnom = dSMeanAnom - 2*math.pi
-            
-            dSTime = self.startOrbit.get_period() * dSMeanAnom / 2 / math.pi
-            
-            # end orbit difference in burn location times
-            eBurnTime = self.get_arrival_burn_time()
-            
-            eTrueAnom = self.endOrbit.get_angle_in_orbital_plane(           \
-                self.endOrbit.get_time(0),                                  \
-                self.insertionTrajectory.get_state_vector(eBurnTime)[0]);
-            
-            dEMeanAnom = -self.endOrbit.get_mean_anomaly(                   \
-                                    self.endOrbit.get_time(eTrueAnom)) +    \
-                        self.endOrbit.get_mean_anomaly(eBurnTime);
-            if (dEMeanAnom > math.pi and self.endOrbit.ecc < 1):
-                dEMeanAnom = dEMeanAnom - 2*math.pi
-            
-            dETime = self.endOrbit.get_period() * dEMeanAnom / 2 / math.pi
-            
-            # get combined time offsets
-            err = abs(dSTime) + abs(dETime)
-            
-            # adjust start time and flight time to get desired shift 
-            # in burn times
-            self.startTime = self.startTime + dSTime
-            self.flightTime = self.flightTime + dETime - dSTime
-            
-            # get new transfer details
-            self.genetic_refine()
+            elif it == 1:
+                burnTime = self.get_departure_burn_time()
+                burnPos = self.ejectionTrajectory.get_state_vector(burnTime)[0];
+                burnTrueAnom = self.startOrbit.get_angle_in_orbital_plane(  \
+                        self.startOrbit.get_time(0), burnPos);
+                burnMeanAnom = self.startOrbit.get_mean_anomaly(            \
+                    self.startOrbit.get_time(burnTrueAnom))
+                orbMeanAnom = self.startOrbit.get_mean_anomaly(burnTime)
+                dMeanAnom = burnMeanAnom - orbMeanAnom
+                while abs(dMeanAnom) > math.pi:
+                    dMeanAnom = dMeanAnom + math.copysign(2*math.pi, -dMeanAnom)
+                dT = self.startOrbit.get_period() * dMeanAnom / (2*math.pi)
+                err = dT
+            else:
+                self.startTime = self.startTime + dT
+                gen = self.genetic_refine()
+                if gen is None:
+                    break
+                burnTime = self.get_departure_burn_time()
+                burnPos = self.ejectionTrajectory.get_state_vector(burnTime)[0];
+                burnTrueAnom = self.startOrbit.get_angle_in_orbital_plane(  \
+                        self.startOrbit.get_time(0), burnPos);
+                burnMeanAnom = self.startOrbit.get_mean_anomaly(            \
+                    self.startOrbit.get_time(burnTrueAnom))
+                orbMeanAnom = self.startOrbit.get_mean_anomaly(burnTime)
+                dMeanAnom = burnMeanAnom - orbMeanAnom
+                while abs(dMeanAnom) > math.pi:
+                    dMeanAnom = dMeanAnom + math.copysign(2*math.pi,-dMeanAnom)
+                dT = self.startOrbit.get_period() * dMeanAnom / (2*math.pi)
+                err = dT
+        
+        return
     
     
     def get_departure_burn_time(self):
@@ -978,57 +981,33 @@ class Transfer:
             norm(self.insertionDV)
     
     
-    # IDEAS FOR NON-GENETIC-ALGORITHM ITERATION FOR START AND END POSITIONS
-    
-    # def refine(self, tol = 1000, maxIt = 100):
-    #     """Re-solves Lambert to resolve escape position and transfer start"""
-        
-    #     startBodyPos = self.startOrbit.prim.orb.get_state_vector(self.startTime)[0]
-    #     endBodyPos = self.endOrbit.prim.orb.get_state_vector(self.startTime+self.flightTime)[0]
-    #     startPos = startBodyPos
-    #     endPos = endBodyPos
-    #     err = self.get_error(startPos, endPos)
-    #     it = 0
-        
-    #     # Re-solve Lambert until startPos matches SOI escape
-    #     while err > tol:
-    #         it = it+1
-    #         if it > maxIt:
-    #             return None
-    #         prevErr = err
-    #         err = self.get_error(startPos, endPos)
-    #         if err <= prevErr:
-    #             startPos = self.startPos
-    #             endPos = self.endPos
-    #         else:
-    #             startPos = (2*startBodyPos - self.startPos)
-    #             endPos = (2*endBodyPos - self.endPos)
-            
-    #         # errDiff = err - prevErr
-    #         # if (errDiff/err > -0.05 and not errDiff == 0):
-    #         #     ratio = ratio/2
-    #         #     self.startPos = prevPrevStartPos * (1-ratio) +           \
-    #         #         prevStartPos * ratio;
-    #         #     err = prevErr
-    #         # else:
-    #         #     self.startPos = prevStartPos * (1-ratio) +               \
-    #         #         self.startPos * ratio;
-    #     return it
-    
-    
-    @staticmethod
-    def get_random_unit_vector():
-        """Gets random 3D unit vector."""
-        
-        vec = np.array([gauss(0, 1) for i in range(3)])
-        return vec/norm(vec)
-    
-    
-    def genetic_refine(self, num = 10, tol = 10, maxGen = 75):
+    def genetic_refine(self, num = 10, tol = 10, maxGen = 40):
         """Genetic algorithm to find start and end positions for Transfer"""
         
-        # TO DO: figure out better mutation methods, convergence for high
-        # inclination transfers
+        # TO DO: figure out better crossover/mutation methods, 
+        # convergence for high-inclination transfers
+        
+        if (self.ejectionTrajectory is None) or                             \
+            (self.insertionTrajectory is None):
+            
+            gen = 0
+            maxGen = maxGen * 10
+            err = self.get_error()
+            while abs(err) > tol:
+                gen = gen+1
+                if gen > maxGen:
+                    self.startPos = None
+                    self.endPos = None
+                    self.get_transfer_details()
+                    self.convergenceFail = True
+                    if not self.ejectionTrajectory is None:
+                        self.adjust_start_orbit_mo()
+                    if not self.insertionTrajectory is None:
+                        self.adjust_end_orbit_mo()
+                    return
+                err = self.get_error()
+            self.convergenceFail = False
+            return gen
         
         startPositions, endPositions = self.get_first_generation(num)
         startPositions, endPositions, err =                                 \
@@ -1037,13 +1016,17 @@ class Transfer:
         gen = 0
         while np.amin(err) > tol:
             gen = gen+1
+            # if gen%100 == 0:
+            #     print('.')
             if gen > maxGen:
-                self.startPos = self.startOrbit.prim.orb.get_state_vector(  \
-                        self.startTime)[0];
-                self.endPos = self.endOrbit.prim.orb.get_state_vector(      \
-                    self.startTime+self.flightTime)[0];
+                self.startPos = None
+                self.endPos = None
                 self.get_transfer_details()
                 self.convergenceFail = True
+                if not self.ejectionTrajectory is None:
+                    self.adjust_start_orbit_mo()
+                if not self.insertionTrajectory is None:
+                    self.adjust_end_orbit_mo()
                 return
             
             startPositions, endPositions = self.get_next_generation(        \
@@ -1055,11 +1038,11 @@ class Transfer:
         self.startPos = startPositions[0]
         self.endPos = endPositions[0]
         self.convergenceFail = False
-        if not self.ejectionTrajectory is None:
-            self.adjust_start_orbit()
-        if not self.insertionTrajectory is None:
-            self.adjust_end_orbit()
-        return
+        # if not self.ejectionTrajectory is None:
+        #     self.adjust_start_orbit_mo()
+        # if not self.insertionTrajectory is None:
+        #     self.adjust_end_orbit_mo()
+        return gen
     
     
     def get_first_generation(self, num = 10):
@@ -1068,10 +1051,13 @@ class Transfer:
         startPositions = []
         endPositions = []
         
-        for x in range(num):
+        for x in range(math.ceil(num/2)):
             self.get_transfer_details()
             startPositions.append(self.startPos)
             endPositions.append(self.endPos)
+            startMut, endMut = self.mutate(startPositions[-1],endPositions[-1])
+            startPositions.append(startMut)
+            endPositions.append(endMut)
         
         return startPositions, endPositions
     
@@ -1132,49 +1118,62 @@ class Transfer:
                     p2 = z
                     break
                 p2 = len(probs)-1
-            sPos, ePos = self.crossover(startPositions[p1], endPositions[p1],
-                                        startPositions[p2], endPositions[p2])
+            sPos, ePos = self.crossover(
+                [startPositions[p1], startPositions[p2]],
+                [endPositions[p1], endPositions[p2]],
+                [err[p1], err[p2]]);
             val3 = np.random.rand()
             if val3 < 0.25:
-                sPos, ePos = self.mutate(sPos, ePos, err[x])
+                sPos, ePos = self.mutate(sPos, ePos)
             nextStartPositions.append(sPos)
             nextEndPositions.append(ePos)
         
         return nextStartPositions, nextEndPositions
     
     
-    def crossover(self, start1, end1, start2, end2):
+    def crossover(self, starts, ends, errs):
         """Combines positions with random weighted average."""
         
-        # startBodyPos = self.startOrbit.prim.orb.get_state_vector(           \
-        #     self.startTime)[0];
-        # endBodyPos = self.endOrbit.prim.orb.get_state_vector(               \
-        #     self.startTime + self.flightTime)[0];
+        startBodyPos = self.startOrbit.prim.orb.get_state_vector(           \
+            self.startTime)[0];
+        endBodyPos = self.endOrbit.prim.orb.get_state_vector(               \
+            self.startTime + self.flightTime)[0];
         
-        # startSOI = self.startOrbit.prim.soi
-        # endSOI = self.endOrbit.prim.soi
+        startSOI = self.startOrbit.prim.soi
+        endSOI = self.endOrbit.prim.soi
         
-        startRatio = gauss(0.5, 0.25)
-        endRatio = gauss(0.5, 0.25)
+        minErrIndex = np.argmin(errs)
+        maxErrIndex = np.argmax(errs)
+        errRatio = errs[minErrIndex]/errs[maxErrIndex]
+        # errRatio = 0.5
         
-        start = start1*startRatio + start2*(1-startRatio)
-        # start = start - startBodyPos
-        # start = start/norm(start) * startSOI
-        # start = start + startBodyPos
+        startRatio = gauss(1, errRatio)
+        endRatio = gauss(1, errRatio)
         
-        end = end1*endRatio + end2*(1-endRatio)
-        # end = end - endBodyPos
-        # end = end/norm(end) * endSOI
-        # end = end + endBodyPos
+        start = starts[minErrIndex]*startRatio +                            \
+                starts[maxErrIndex]*(1-startRatio);
+        start = start - startBodyPos
+        start = start/norm(start) * startSOI
+        start = start + startBodyPos
         
-        self.startPos = start
-        self.endPos = end
-        self.get_transfer_details()
+        end = ends[minErrIndex]*endRatio +                                  \
+              ends[maxErrIndex]*(1-endRatio);
+        end = end - endBodyPos
+        end = end/norm(end) * endSOI
+        end = end + endBodyPos
         
-        return self.startPos, self.endPos
+        randomVal = np.random.rand()
+        if randomVal < 0.1:
+            self.startPos = start
+            self.endPos = end
+            self.get_transfer_details()
+            start = self.startPos
+            end = self.endPos
+        
+        return start, end
     
     
-    def mutate(self, start, end, err = None):
+    def mutate(self, start, end):
         """Modifies positions by randomly changing spherical angles."""
         
         startBodyPos = self.startOrbit.prim.orb.get_state_vector(           \
@@ -1182,29 +1181,45 @@ class Transfer:
         endBodyPos = self.endOrbit.prim.orb.get_state_vector(               \
             self.startTime + self.flightTime)[0];
         
+        err = self.get_error(start, end)
+        
         start = start - startBodyPos
         end = end - endBodyPos
         
-        angle = 10 * math.pi/180
+        # angle = err/(2*self.startOrbit.prim.soi)*180 * math.pi/180
+        # vecStart = np.array([np.random.rand()-0.5, np.random.rand()-0.5])
+        # vecStart = vecStart/norm(vecStart) * angle
+        # vecEnd = np.array([np.random.rand()-0.5, np.random.rand()-0.5])
+        # vecEnd = vecEnd/norm(vecEnd) * angle
         
-        thetaStart =  math.atan2(start[1],start[0])
-        phiStart = math.acos(start[2]/norm(start))
-        thetaEnd = math.atan2(end[1],end[0])
-        phiEnd =  math.acos(end[2]/norm(end))
+        # thetaStart =  math.atan2(start[1],start[0])
+        # phiStart = math.acos(start[2]/norm(start))
+        # thetaEnd = math.atan2(end[1], end[0])
+        # phiEnd =  math.acos(end[2]/norm(end))
         
-        thetaStart = thetaStart + gauss(0, angle)
-        phiStart = phiStart + gauss(0, angle)
-        thetaEnd = thetaEnd + gauss(0, angle)
-        phiEnd = phiEnd + gauss(0, angle)
+        # thetaStart = thetaStart + vecStart[0]
+        # phiStart = phiStart + vecStart[1]
+        # thetaEnd = thetaEnd + vecEnd[0]
+        # phiEnd = phiEnd + vecEnd[1]
         
-        start = norm(start) * np.array(
-            [math.sin(phiStart)*math.cos(thetaStart),
-              math.sin(phiStart)*math.sin(thetaStart),
-              math.cos(phiStart)])
-        end = norm(end) * np.array(
-            [math.sin(phiStart)*math.cos(thetaStart),
-              math.sin(phiStart)*math.sin(thetaStart),
-              math.cos(phiStart)])
+        # start = norm(start) * np.array(
+        #     [math.sin(phiStart)*math.cos(thetaStart),
+        #       math.sin(phiStart)*math.sin(thetaStart),
+        #       math.cos(phiStart)])
+        # end = norm(end) * np.array(
+        #     [math.sin(phiEnd)*math.cos(thetaEnd),
+        #       math.sin(phiEnd)*math.sin(thetaEnd),
+        #       math.cos(phiEnd)])
+        
+        
+        angle = err/(2*self.startOrbit.prim.soi) * math.pi
+        start = start + self.startOrbit.get_basis_vectors()[2] *            \
+                        math.sin(gauss(0,angle)) * self.startOrbit.prim.soi;
+        end = end + self.endOrbit.get_basis_vectors()[2] *                  \
+                    math.sin(gauss(0,angle)) * self.endOrbit.prim.soi;
+        
+        start = start/norm(start) * self.startOrbit.prim.soi
+        end = end/norm(end) * self.endOrbit.prim.soi
         
         start = start + startBodyPos
         end = end + endBodyPos

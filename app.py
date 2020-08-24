@@ -288,6 +288,67 @@ def add_body(figure, bd, time, surf = True):
                                       ))
         
 
+def add_burn_arrow(figure, burnDV, burnTime, startOrbit, dateFormat = None,
+                       scale=1/2, name = 'Burn', color = (255,0,0)):
+    
+    burnPos, preBurnVel = startOrbit.get_state_vector(burnTime)
+    
+    arrowLength = abs((1-startOrbit.ecc)*startOrbit.a)*scale
+    arrowHeadPos = burnPos + burnDV/norm(burnDV)*arrowLength
+    figure.add_trace(go.Scatter3d(
+        x = [burnPos[0], arrowHeadPos[0]],
+        y = [burnPos[1], arrowHeadPos[1]],
+        z = [burnPos[2], arrowHeadPos[2]],
+        mode = "lines",
+        line = dict(
+            color = 'rgb'+str(color)),
+        hoverinfo = 'skip',
+        showlegend = False,
+        ))
+    
+    burnPos = burnPos/norm(burnPos)
+    preBurnVel = preBurnVel/norm(preBurnVel)
+    prograde = np.dot(preBurnVel, burnDV)
+    normal = np.dot(startOrbit.get_basis_vectors()[2], burnDV);
+    radial = np.dot(burnPos, burnDV)
+    
+    if not dateFormat is None:
+        day = dateFormat['day']
+        year = dateFormat['year']
+    else:
+        day = 6
+        year = 426
+    
+    burnYear   = math.floor(burnTime/(3600*day*year)+1)
+    burnDay    = math.floor(burnTime%(3600*day*year)/(day*3600)+1)
+    burnHour   = math.floor((burnTime%(3600*day))/3600)
+    burnMinute = math.floor(((burnTime%(3600*day))%3600)/60)
+    burnSecond = math.floor(((burnTime%(3600*day))%3600)%60)
+    
+    direction = burnDV/norm(burnDV) * arrowLength/2
+    figure.add_trace(go.Cone(
+        x = [arrowHeadPos[0]],
+        y = [arrowHeadPos[1]],
+        z = [arrowHeadPos[2]],
+        u = [direction[0]],
+        v = [direction[1]],
+        w = [direction[2]],
+        colorscale = [[0, 'rgb'+str(color)],
+                      [1, 'rgb'+str(color)]],
+        showscale = False,
+        showlegend = False,
+        name = name,
+        hovertemplate =                                                     \
+                     "{:.2f}".format(prograde) + 'm/s prograde' + "<br>" +  \
+                     "{:.2f}".format(normal) + 'm/s normal' + "<br>" +      \
+                     "{:.2f}".format(radial) + 'm/s radial'+"<br>"+"<br>"+  \
+                     'Year ' + str(burnYear) + ', ' +                       \
+                     'Day ' + str(burnDay) + ', ' +                         \
+                     "{:02d}".format(burnHour) + ':' +                      \
+                     "{:02d}".format(burnMinute) + ':' +                    \
+                     "{:02d}".format(burnSecond)
+        ))
+    
 def add_transfer_phase_angle(figure, transfer, r = None):
     
     if r is None:
@@ -498,6 +559,13 @@ app.layout = html.Div(className='row', children=[
                                  burn at the target body. Useful for flybys 
                                  or aerocaptures.  
                                    
+                                 **Match starting mean anomaly and epoch**: 
+                                 Adjusts the start time to give a departure 
+                                 burn that matches the start orbit's 
+                                 position. If not selected, the mean anomaly
+                                 of the start parking orbit will not match the 
+                                 input under Advanced Settings.  
+                                   
                                  **Transfer Type**: Choice of inclusion of a 
                                  plane change maneuver.  
                                    
@@ -623,6 +691,14 @@ app.layout = html.Div(className='row', children=[
                         value = [],
                         options=[
                             {'label': 'No insertion burn', 'value': 'True'},
+                            ],
+                        ),
+                    dcc.Checklist(
+                        id = 'matchMo-checklist',
+                        value = [],
+                        options=[
+                            {'label': 'Match starting mean anomaly and epoch',
+                             'value': 'True'}
                             ],
                         ),
                     html.Label('Transfer Type'),
@@ -800,27 +876,33 @@ app.layout = html.Div(className='row', children=[
         html.Div([
             html.H3('Orbit Plots'),
             dcc.Loading(id='transfer-loading', type='circle', children=[
+            html.Div([
                 dcc.Markdown('**Transfer Trajectory**'),
-                dcc.Graph(
-                    id='transfer-graph',
-                    figure = go.Figure(layout = dict(
-                                        xaxis = dict(visible=False),
-                                        yaxis = dict(visible=False)))
-                    ),
+                    dcc.Graph(
+                        id='transfer-graph',
+                        figure = go.Figure(layout = dict(
+                                            xaxis = dict(visible=False),
+                                            yaxis = dict(visible=False))),
+                        ),
+                    ]),
+            html.Div(id='ejection-div', style={'display': 'none'}, children=[
                 dcc.Markdown('**Ejection Trajectory**'),
-                dcc.Graph(
-                    id='ejection-graph',
-                    figure = go.Figure(layout = dict(
-                                        xaxis = dict(visible=False),
-                                        yaxis = dict(visible=False)))
-                    ),
-                dcc.Markdown('**Insertion Trajectory**'),
-                dcc.Graph(
-                    id='insertion-graph',
-                    figure = go.Figure(layout =dict(
-                                        xaxis = dict(visible=False),
-                                        yaxis = dict(visible=False)))
-                    ),
+                    dcc.Graph(
+                        id='ejection-graph',
+                        figure = go.Figure(layout = dict(
+                                            xaxis = dict(visible=False),
+                                            yaxis = dict(visible=False))),
+                        ),
+                    ]),
+            html.Div(id='insertion-div', style={'display': 'none'}, children=[
+                    dcc.Markdown('**Insertion Trajectory**'),
+                    dcc.Graph(
+                        id='insertion-graph',
+                        figure = go.Figure(layout =dict(
+                                            xaxis = dict(visible=False),
+                                            yaxis = dict(visible=False))),
+                        ),
+                    ]),
                 ]),
             ]),
         ]),
@@ -994,8 +1076,6 @@ def update_porkchop_data(nClicks, system, dateFormat,
                           minStartYear, minStartDay, maxStartYear, maxStartDay,
                           minFlightDays, maxFlightDays, numPointsSampled):
     
-    t0 = time.time()
-    
     # return empty plot on page load
     if nClicks == 0:
         return dash.no_update
@@ -1103,20 +1183,16 @@ def update_porkchop_data(nClicks, system, dateFormat,
                               minFlightTime, maxFlightTime,
                               numPointsSampled, numPointsSampled)
     
-    t1 = time.time()
-    print(t1-t0)
-    
     return jsonpickle.encode(porkTable)
 
 @app.callback(
     Output('transfer-div','children'),
     [Input('porkchop-div','children'),
      Input('porkchop-graph','clickData')],
-    [State('dateFormat-div','children')]
+    [State('dateFormat-div','children'),
+     State('matchMo-checklist','value')]
     )
-def update_chosen_tranfser(porkTable, clickData, dateFormat):
-    
-    t0 = time.time()
+def update_chosen_tranfser(porkTable, clickData, dateFormat, matchMo):
     
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -1127,11 +1203,6 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat):
     # if the update comes from the porkchop data, get the best transfer
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'porkchop-div':
         transfer = porkTable.get_best_transfer()
-        transfer.genetic_refine()
-        # transfer.adjust_times()
-        t1 = time.time()
-        print(t1-t0)
-        return jsonpickle.encode(transfer)
     
     # if the update comes from user click data, get the chosen transfer
     elif ctx.triggered[0]['prop_id'].split('.')[0] == 'porkchop-graph':
@@ -1140,12 +1211,20 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat):
         flightDays = clickData['points'][0]['y']
         startTime = startDays * 3600 * day
         flightTime = flightDays * 3600 * day
-        transfer = porkTable.get_chosen_transfer (startTime, flightTime)
+        transfer = porkTable.get_chosen_transfer(startTime, flightTime)
+    
+    # adjust start orbit to match burn position or vice versa
+    if matchMo:
+        transfer.match_start_mean_anomaly()
+        if not transfer.ejectionTrajectory is None:
+            transfer.adjust_end_orbit_mo()
+    else:
         transfer.genetic_refine()
-        # transfer.adjust_times()
-        t1 = time.time()
-        print(t1-t0)
-        return jsonpickle.encode(transfer)
+        if not transfer.ejectionTrajectory is None:
+            transfer.adjust_start_orbit_mo()
+        if not transfer.insertionTrajectory is None:
+            transfer.adjust_end_orbit_mo()
+    return jsonpickle.encode(transfer)
 
 @app.callback(
     Output('porkchop-graph','figure'),
@@ -1280,59 +1359,108 @@ def update_transfer_details(chosenTransfer, dateFormat):
         ', Day ' +                                                          \
         str(math.floor(departureTime%(3600*day*year)/(day*3600)+1)) +       \
         ', ' +                                                              \
-        str(math.floor((departureTime%(3600*day))/3600)) + ':' +            \
-        str(math.floor(((departureTime%(3600*day))%3600)/60)) + ':' +       \
-        str(math.floor(((departureTime%(3600*day))%3600)%60));
+        "{:02d}".format(math.floor((departureTime%(3600*day))/3600)) + ':' +\
+        "{:02d}".format(math.floor(((departureTime%(3600*day))%3600)/60)) + \
+        ':' +                                                               \
+        "{:02d}".format(math.floor(((departureTime%(3600*day))%3600)%60));
     arrivalTime = chosenTransfer.get_arrival_burn_time()
     arrivalString = '**Arrival:** Year ' +                                  \
         str(math.floor(arrivalTime/(3600*day*year)+1)) +                    \
         ', Day ' +                                                          \
         str(math.floor(arrivalTime%(3600*day*year)/(day*3600)+1)) +         \
         ', ' +                                                              \
-        str(math.floor((arrivalTime%(3600*day))/3600)) + ':' +              \
-        str(math.floor(((arrivalTime%(3600*day))%3600)/60)) + ':' +         \
-        str(math.floor(((arrivalTime%(3600*day))%3600)%60));
+        "{:02d}".format(math.floor((arrivalTime%(3600*day))/3600)) + ':' +  \
+        "{:02d}".format(math.floor(((arrivalTime%(3600*day))%3600)/60))+':'+\
+        "{:02d}".format(math.floor(((arrivalTime%(3600*day))%3600)%60));
     flightTime = chosenTransfer.get_arrival_burn_time() -                   \
         chosenTransfer.get_departure_burn_time()
     flightTimeString = '**Flight Duration:** ' +                            \
         str(math.floor(flightTime/(3600*day))+1) +                          \
             ' days, ' +                                                     \
-        str(math.floor((flightTime%(3600*day))/3600)) + ':' +               \
-        str(math.floor(((flightTime%(3600*day))%3600)/60)) + ':' +          \
-        str(math.floor(((flightTime%(3600*day))%3600)%60));
+        "{:02d}".format(math.floor((flightTime%(3600*day))/3600)) + ':' +   \
+        "{:02d}".format(math.floor(((flightTime%(3600*day))%3600)/60)) +':'+\
+        "{:02d}".format(math.floor(((flightTime%(3600*day))%3600)%60));
+    
     phaseString = '**Phase Angle:** ' +                                     \
         "{:.2f}".format(chosenTransfer.phaseAngle*180/math.pi) + '°';
     totalDVString = '**Total Δv:** ' +                                      \
         "{:.2f}".format(chosenTransfer.get_total_delta_V()) + ' m/s';
-    planeDepartureDV=chosenTransfer.startOrbit.from_primary_to_orbit_bases( \
-                        chosenTransfer.ejectionDV);
-    if chosenTransfer.endOrbit.prim == chosenTransfer.transferOrbit.prim:
-        if chosenTransfer.planeChange:
-            planeArrivalDV=chosenTransfer.transferOrbitPC                   \
-                .from_primary_to_orbit_bases(chosenTransfer.insertionDV);
-        else:
-            planeArrivalDV=chosenTransfer.transferOrbit                     \
-                .from_primary_to_orbit_bases(chosenTransfer.insertionDV);
-    else:
-        planeArrivalDV=chosenTransfer.endOrbit.from_primary_to_orbit_bases( \
-                            chosenTransfer.insertionDV)
-    departureDVString = '**Departure Burn:** ' +                            \
-        "{:.2f}".format(norm([planeDepartureDV[0],planeDepartureDV[1]])) +  \
-        ' m/s prograde, ' +                                                 \
-        "{:.2f}".format(planeDepartureDV[2]) +                              \
-        ' m/s normal';
-    arrivalDVString = '**Arrival Burn:** ' +                                \
-        "{:.2f}".format(norm([planeArrivalDV[0],planeArrivalDV[1]])) +      \
-        ' m/s retrograde, ' +                                                 \
-        "{:.2f}".format(planeArrivalDV[2]) +                                \
-        ' m/s normal';
     transferOrbitString = '**Transfer Orbit:**\n' +                         \
         str(chosenTransfer.transferOrbit);
+    
+    # departure burn details
+    preDepartPos, preDepartVel =chosenTransfer.startOrbit.get_state_vector( \
+        chosenTransfer.get_departure_burn_time())
+    preDepartPos = preDepartPos/norm(preDepartPos)
+    preDepartVel = preDepartVel/norm(preDepartVel)
+    departPrograde = np.dot(preDepartVel, chosenTransfer.ejectionDV)
+    departNormal = np.dot(chosenTransfer.startOrbit.get_basis_vectors()[2], \
+                          chosenTransfer.ejectionDV);
+    departRadial = np.dot(preDepartPos, chosenTransfer.ejectionDV)
+    departureDVString = '**Departure Burn:** ' +                            \
+        "{:.2f}".format(departPrograde) + ' m/s prograde';
+    if abs(departNormal) > 0.05:
+        departureDVString = departureDVString + ', ' +                      \
+            "{:.2f}".format(departNormal) + ' m/s normal';
+    if abs(departRadial) > 0.05:
+        departureDVString = departureDVString + ', ' +                      \
+            "{:.2f}".format(departRadial) + ' m/s radial';
+        
+    # arrival burn details
+    if not chosenTransfer.ignoreInsertion:
+        if chosenTransfer.endOrbit.prim == chosenTransfer.transferOrbit.prim:
+            if chosenTransfer.planeChange:
+                preArrivePos, preArriveVel =                                \
+                    chosenTransfer.transferOrbitPC.get_state_vector(        \
+                        chosenTransfer.get_arrival_burn_time());
+            else:
+                preArrivePos, preArriveVel =                                \
+                    chosenTransfer.transferOrbit.get_state_vector(          \
+                        chosenTransfer.get_arrival_burn_time());
+        else:
+            preArrivePos, preArriveVel =                                    \
+                chosenTransfer.insertionTrajectory.get_state_vector(        \
+                    chosenTransfer.get_arrival_burn_time());
+        preArrivePos = preArrivePos/norm(preArrivePos)
+        preArriveVel = preArriveVel/norm(preArriveVel)
+        arrivePrograde = np.dot(preArriveVel, chosenTransfer.insertionDV)
+        arriveNormal =np.dot(chosenTransfer.endOrbit.get_basis_vectors()[2],\
+                              chosenTransfer.insertionDV)
+        arriveRadial = np.dot(preArrivePos, chosenTransfer.insertionDV)
+        arrivalDVString = '**Arrival Burn:** ' +                            \
+            "{:.2f}".format(-arrivePrograde) + ' m/s retrograde';
+        if abs(arriveNormal) > 0.05:
+            arrivalDVString = arrivalDVString + ', ' +                      \
+                "{:.2f}".format(arriveNormal) + ' m/s normal';
+        if abs(arriveRadial) > 0.05:
+            arrivalDVString = arrivalDVString + ', ' +                      \
+                "{:.2f}".format(arriveRadial) + ' m/s radial';
+    else:
+        arrivalDVString = '**Arrival Burn:** None'
+    
     # plane change details
     if chosenTransfer.planeChange is True:
         planeChangeStyle = None
-        planeChangeDVString = '**Plane Change Δv:** ' +                     \
-            "{:.2f}".format(norm(chosenTransfer.planeChangeDV)) + ' m/s';
+        prePlaneChangePos, prePlaneChangeVel =                              \
+            chosenTransfer.transferOrbit.get_state_vector(                  \
+                chosenTransfer.startTime + chosenTransfer.planeChangeDT);
+        prePlaneChangePos = prePlaneChangePos/norm(prePlaneChangePos)
+        prePlaneChangeVel = prePlaneChangeVel/norm(prePlaneChangeVel)
+        planeChangePrograde = np.dot(prePlaneChangeVel,                     \
+                                     chosenTransfer.planeChangeDV);
+        planeChangeNormal =                                                 \
+            np.dot(chosenTransfer.transferOrbit.get_basis_vectors()[2],     \
+                   chosenTransfer.planeChangeDV);
+        planeChangeRadial = np.dot(prePlaneChangePos,                       \
+                                   chosenTransfer.planeChangeDV);
+        planeChangeDVString = '**Plane Change Burn:** ' +                   \
+            "{:.2f}".format(planeChangeNormal) + ' m/s normal';
+        if abs(planeChangePrograde) > 0.05:
+            planeChangeDVString = planeChangeDVString + ', ' +              \
+                "{:.2f}".format(planeChangePrograde) + ' m/s prograde';
+        if abs(planeChangeRadial) > 0.05:
+            planeChangeDVString = planeChangeDVString + ', ' +              \
+                "{:.2f}".format(planeChangeRadial) + ' m/s radial';
         planeChangeTime = chosenTransfer.startTime +                        \
             chosenTransfer.planeChangeDT
         planeChangeTimeString = '**Plane Change Time:** Year ' +            \
@@ -1340,9 +1468,10 @@ def update_transfer_details(chosenTransfer, dateFormat):
             ', Day ' +                                                      \
             str(math.floor(planeChangeTime%(3600*day*year)/(day*3600)+1)) + \
             ', ' +                                                          \
-            str(math.floor((planeChangeTime%(3600*day))/3600)) + ':' +      \
-            str(math.floor(((planeChangeTime%(3600*day))%3600)/60)) + ':' + \
-            str(math.floor(((planeChangeTime%(3600*day))%3600)%60));
+            "{:02d}".format(math.floor((planeChangeTime%(3600*day))/3600))+ \
+            ':' +                                                           \
+            "{:02d}".format(math.floor(((planeChangeTime%(3600*day))%3600)/60))+':'+\
+            "{:02d}".format(math.floor(((planeChangeTime%(3600*day))%3600)%60));
         transferOrbitPCString = '**Transfer Orbit (plane change):**\n' +    \
             str(chosenTransfer.transferOrbitPC);
     else:
@@ -1350,6 +1479,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
         planeChangeDVString = ''
         planeChangeTimeString = ''
         transferOrbitPCString = ''
+    
     # ejection details
     if not chosenTransfer.ejectionTrajectory is None:
         ejectionStyle = None
@@ -1362,9 +1492,9 @@ def update_transfer_details(chosenTransfer, dateFormat):
         ', Day ' +                                                          \
         str(math.floor(escapeTime%(3600*day*year)/(day*3600)+1)) +          \
         ', ' +                                                              \
-        str(math.floor((escapeTime%(3600*day))/3600)) + ':' +               \
-        str(math.floor(((escapeTime%(3600*day))%3600)/60)) + ':' +          \
-        str(math.floor(((escapeTime%(3600*day))%3600)%60));
+        "{:02d}".format(math.floor((escapeTime%(3600*day))/3600)) + ':' +   \
+        "{:02d}".format(math.floor(((escapeTime%(3600*day))%3600)/60)) +':'+\
+        "{:02d}".format(math.floor(((escapeTime%(3600*day))%3600)%60));
         ejectionOrbitString = '**Ejection Orbit:**\n' +                     \
             str(chosenTransfer.ejectionTrajectory)
     else:
@@ -1372,6 +1502,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
         ejectionAngleString = ''
         escapeTimeString = ''
         ejectionOrbitString = ''
+    
     # insertion details
     if not chosenTransfer.insertionTrajectory is None:
         insertionStyle = None
@@ -1381,9 +1512,10 @@ def update_transfer_details(chosenTransfer, dateFormat):
         ', Day ' +                                                          \
         str(math.floor(encounterTime%(3600*day*year)/(day*3600)+1)) +       \
         ', ' +                                                              \
-        str(math.floor((encounterTime%(3600*day))/3600)) + ':' +            \
-        str(math.floor(((encounterTime%(3600*day))%3600)/60)) + ':' +       \
-        str(math.floor(((encounterTime%(3600*day))%3600)%60));
+        "{:02d}".format(math.floor((encounterTime%(3600*day))/3600)) + ':' +\
+        "{:02d}".format(math.floor(((encounterTime%(3600*day))%3600)/60)) + \
+        ':' +                                                               \
+        "{:02d}".format(math.floor(((encounterTime%(3600*day))%3600)%60));
         insertionOrbitString = '**Insertion Orbit:**\n' +                   \
             str(chosenTransfer.insertionTrajectory)
     else:
@@ -1415,7 +1547,8 @@ def update_transfer_plot(chosenTransfer, dateFormat):
         return fig
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     
-    startTime = chosenTransfer.get_departure_burn_time()
+    burnTime = chosenTransfer.get_departure_burn_time()
+    startTime = chosenTransfer.startTime
     endTime = chosenTransfer.startTime + chosenTransfer.flightTime
     
     if chosenTransfer.planeChange is True:
@@ -1434,16 +1567,29 @@ def update_transfer_plot(chosenTransfer, dateFormat):
                             add_orbit(fig, chosenTransfer.transferOrbitPC,  \
                                       pcTime, endTime, 201, dateFormat,     \
                                       name = 'Transfer (plane change)'));
+        add_burn_arrow(fig, chosenTransfer.planeChangeDV, pcTime,         \
+                       chosenTransfer.transferOrbit, dateFormat, scale=1/4);
     
     # if the starting orbit is around the primary body, add it
     if (chosenTransfer.startOrbit.prim == chosenTransfer.transferOrbit.prim):
         add_orbit(fig, chosenTransfer.startOrbit, startTime, endTime, 201,  \
                   dateFormat, name = 'Start');
+        add_burn_arrow(fig, chosenTransfer.ejectionDV, startTime,           \
+                       chosenTransfer.startOrbit, dateFormat, scale = 1/4);
     
     # if the target orbit is around the primary body, add it
     if (chosenTransfer.endOrbit.prim == chosenTransfer.transferOrbit.prim):
         add_orbit(fig, chosenTransfer.endOrbit, startTime, endTime, 201,    \
                   dateFormat, name = 'Target');
+        if not chosenTransfer.ignoreInsertion:
+            if chosenTransfer.planeChange:
+                add_burn_arrow(fig, chosenTransfer.insertionDV, endTime,    \
+                               chosenTransfer.transferOrbitPC, dateFormat,  \
+                               scale = 1/4);
+            else:
+                add_burn_arrow(fig, chosenTransfer.insertionDV, endTime,    \
+                               chosenTransfer.transferOrbit, dateFormat,    \
+                               scale = 1/4);
     
     # add orbits/bodies for all satellites around the primary body
     for bd in chosenTransfer.transferOrbit.prim.satellites:
@@ -1459,7 +1605,7 @@ def update_transfer_plot(chosenTransfer, dateFormat):
         #                           chosenTransfer.flightTime,                \
         #                           501);
         maxVals = np.append(maxVals,
-                            add_orbit(fig, bd.orb, startTime, endTime, 201, \
+                            add_orbit(fig, bd.orb, burnTime, endTime, 201, \
                                       dateFormat, bd.color, bd.name));
         add_body(fig, bd, chosenTransfer.get_departure_burn_time())
     
@@ -1510,7 +1656,8 @@ def update_transfer_plot(chosenTransfer, dateFormat):
     return fig
 
 @app.callback(
-    Output('ejection-graph', 'figure'),
+    [Output('ejection-graph', 'figure'),
+     Output('ejection-div', 'style')],
     [Input('transfer-div', 'children'),
      Input('dateFormat-div', 'children')]
     )
@@ -1518,11 +1665,13 @@ def update_ejection_plot(chosenTransfer, dateFormat):
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
     if chosenTransfer is None:
-        return fig
+        # return fig
+        return fig, dict(display = 'none')
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     if chosenTransfer.ejectionTrajectory is None:
-        return fig
+        # return fig
+        return fig, dict(display = 'none')
     
     escTime = chosenTransfer.startTime
     burnTime = chosenTransfer.get_departure_burn_time()
@@ -1530,6 +1679,8 @@ def update_ejection_plot(chosenTransfer, dateFormat):
     # add ejection trajectory
     add_orbit(fig, chosenTransfer.ejectionTrajectory, burnTime, escTime,    \
               501, dateFormat, name = 'Ejection');
+    add_burn_arrow(fig, chosenTransfer.ejectionDV, burnTime,                \
+                   chosenTransfer.startOrbit, dateFormat);
     
     # record highest altitudes for 3D plot limits
     maxVals = [10*chosenTransfer.startOrbit.a]
@@ -1605,10 +1756,11 @@ def update_ejection_plot(chosenTransfer, dateFormat):
                 )
             )
         )
-    return fig
+    return fig, dict(display = 'block')
 
 @app.callback(
-    Output('insertion-graph', 'figure'),
+    [Output('insertion-graph', 'figure'),
+     Output('insertion-div', 'style')],
     [Input('transfer-div', 'children'),
      Input('dateFormat-div', 'children')]
     )
@@ -1617,11 +1769,13 @@ def update_insertion_plot(chosenTransfer, dateFormat):
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
     if chosenTransfer is None:
-        return fig
+        # return fig
+        return fig, dict(display = 'none')
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     if chosenTransfer.insertionTrajectory is None:
-        return fig
+        # return fig
+        return fig, dict(display = 'none')
     
     encTime = chosenTransfer.startTime + chosenTransfer.flightTime
     burnTime = chosenTransfer.get_arrival_burn_time()
@@ -1660,6 +1814,8 @@ def update_insertion_plot(chosenTransfer, dateFormat):
                                     201, dateFormat,                        \
                                     name = 'Ending Orbit', style = 'dot',   \
                                     fade = False));
+        add_burn_arrow(fig, chosenTransfer.insertionDV, burnTime,           \
+                   chosenTransfer.insertionTrajectory, dateFormat);
     
     # add bodies/orbits of satellite bodies around the primary body
     for bd in chosenTransfer.insertionTrajectory.prim.satellites:
@@ -1719,7 +1875,7 @@ def update_insertion_plot(chosenTransfer, dateFormat):
                 )
             )
         )
-    return fig
+    return fig, dict(display = 'block')
 
 if __name__ == '__main__':
     app.run_server(debug=False)

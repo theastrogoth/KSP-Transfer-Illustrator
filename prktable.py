@@ -96,13 +96,25 @@ class PorkchopTable:
     def fill_table(self):
         """Calculates the delta v for each choice of start and flight time."""
         
+        # f = open('gens.csv','w')
+        
         deltaVTable = np.zeros((self.flightTimeSize,self.startTimeSize))
         
         for xx, flightTime in enumerate(self.flightTimes, start=0):
             for yy, startTime in enumerate(self.startTimes, start=0):
+                # trs, gen = self.get_chosen_transfer(startTime, flightTime)
+                # f.write(str(startTime))
+                # f.write(',')
+                # f.write(str(flightTime))
+                # f.write(',')
+                # f.write(str(gen))
+                # f.write(',')
+                # f.write(str(trs.convergenceFail))
+                # f.write(',')
+                # f.write('\n')
                 trs = self.get_chosen_transfer(startTime, flightTime)
                 deltaVTable[xx][yy] = trs.get_total_delta_V()
-                
+        # f.close()
         self.deltaV = deltaVTable
     
     
@@ -115,7 +127,7 @@ class PorkchopTable:
         startTime = self.startTimes[index[1][0]]
         flightTime = self.flightTimes[index[0][0]]
         
-        return self.get_chosen_transfer(startTime, flightTime)
+        return self.get_chosen_transfer(startTime, flightTime) # [0]
     
     def get_chosen_transfer (self, startTime, flightTime):
         """Returns the transfer with the specified start and flight times.
@@ -158,4 +170,5 @@ class PorkchopTable:
         else:
             raise Exception('uncrecognized transfer type')
         
-        return trs
+        # gen = trs.genetic_refine()
+        return trs # , gen
