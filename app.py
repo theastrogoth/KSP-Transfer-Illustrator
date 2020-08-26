@@ -814,8 +814,8 @@ app.layout = html.Div(className='row', children=[
         dcc.Dropdown(
                         id = 'porkchopDisplay-dropdown',
                         options=[{'label': 'Total Δv', 'value': 'total'},
-                                 {'label': 'Ejection Δv', 'value': 'eject'},
-                                 {'label': 'Insertion Δv', 'value': 'insert'}
+                                 {'label': 'Departure Δv', 'value': 'eject'},
+                                 {'label': 'Arrival Δv', 'value': 'insert'}
                                  ],
                         value='total'
                         ),
