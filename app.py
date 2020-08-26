@@ -811,6 +811,14 @@ app.layout = html.Div(className='row', children=[
         ]),
     html.Div(className='four columns', children = [
         html.H3('Porkchop Plot'),
+        dcc.Dropdown(
+                        id = 'porkchopDisplay-dropdown',
+                        options=[{'label': 'Total Δv', 'value': 'total'},
+                                 {'label': 'Ejection Δv', 'value': 'eject'},
+                                 {'label': 'Insertion Δv', 'value': 'insert'}
+                                 ],
+                        value='total'
+                        ),
         html.Button(children = 'Plot!',
                     className = 'button-primary',
                     id = 'porkchop-button',
@@ -1230,14 +1238,17 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat, matchMo):
     Output('porkchop-graph','figure'),
     [Input('porkchop-div','children'),
      Input('transfer-div','children'),
-     Input('dateFormat-div','children')],
+     Input('dateFormat-div','children'),
+     Input('porkchopDisplay-dropdown','value')],
     [State('porkchop-graph','figure')]
     )
-def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, prevState):
+def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, displayType, 
+                         prevState):
     
     ctx = dash.callback_context
     if not ctx.triggered or porkTable is None:
         return prevState
+    
     # load porkchop and transfer objects
     porkTable = jsonpickle.decode(porkTable)
     if chosenTransfer is None:
@@ -1249,13 +1260,25 @@ def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, prevState):
     
     # prep empty plot
     fig = go.Figure()
+    
+    # get the appropriate values according to user input
+    if displayType == 'total':
+        dV = porkTable.totalDeltaV
+        minDV = porkTable.get_best_transfer().get_total_delta_V()
+    elif displayType == 'eject':
+        dV = porkTable.ejectionDeltaV
+        minDV = np.amin(porkTable.ejectionDeltaV)
+    elif displayType == 'insert':
+        dV = porkTable.insertionDeltaV
+        minDV = np.amin(porkTable.insertionDeltaV)
+    else:
+        dV = porkTable.totalDeltaV
+        minDV = porkTable.get_best_transfer().get_total_delta_V()
+        
     # prep plot data
     bs = 1.1        # exponent base for contour levels
     numlvls = 20
-    dV = porkTable.deltaV
-    minDV = porkTable.get_best_transfer().get_total_delta_V()
     lvls = minDV * bs**(np.arange(start=0,stop=numlvls,step=4))
-    
     logdV = np.log(dV)/np.log(bs)
     logLvls = np.log(lvls)/np.log(bs)
     colorVals = logLvls

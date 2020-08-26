@@ -1,5 +1,6 @@
 import math
 import numpy as np
+from numpy.linalg import norm
 from orbit import Orbit
 from body import Body
 from transfer import Transfer
@@ -86,10 +87,11 @@ class PorkchopTable:
                                        num = self.flightTimeSize)
         
         # The attributes defined here will be filled in with methods
-        self.deltaV = None
+        self.totalDeltaV = None
+        self.ejectionDeltaV = None
+        self.insertionDeltaV = None
         
-        
-        
+        # Fill in the empty attributes
         self.fill_table()
     
     
@@ -98,7 +100,10 @@ class PorkchopTable:
         
         # f = open('gens.csv','w')
         
-        deltaVTable = np.zeros((self.flightTimeSize,self.startTimeSize))
+        totalDeltaVTable = np.zeros((self.flightTimeSize,self.startTimeSize))
+        ejectDeltaVTable = np.zeros((self.flightTimeSize,self.startTimeSize))
+        insertDeltaVTable = np.zeros((self.flightTimeSize,self.startTimeSize))
+        
         
         for xx, flightTime in enumerate(self.flightTimes, start=0):
             for yy, startTime in enumerate(self.startTimes, start=0):
@@ -113,16 +118,20 @@ class PorkchopTable:
                 # f.write(',')
                 # f.write('\n')
                 trs = self.get_chosen_transfer(startTime, flightTime)
-                deltaVTable[xx][yy] = trs.get_total_delta_V()
+                totalDeltaVTable[xx][yy] = trs.get_total_delta_V()
+                ejectDeltaVTable[xx][yy] = norm(trs.ejectionDV)
+                insertDeltaVTable[xx][yy] = norm(trs.insertionDV)
         # f.close()
-        self.deltaV = deltaVTable
+        self.totalDeltaV = totalDeltaVTable
+        self.ejectionDeltaV = ejectDeltaVTable
+        self.insertionDeltaV = insertDeltaVTable
     
     
     def get_best_transfer(self):
         """Returns the transfer with the lowest delta V among sampled points."""
         
-        minDV = np.nanmin(self.deltaV)
-        index = np.where(self.deltaV == minDV)
+        minDV = np.nanmin(self.totalDeltaV)
+        index = np.where(self.totalDeltaV == minDV)
         
         startTime = self.startTimes[index[1][0]]
         flightTime = self.flightTimes[index[0][0]]
