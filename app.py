@@ -209,7 +209,7 @@ def add_orbit(figure, orb, startTime, endTime, numPts=201, dateFormat = None,
     
     return maxVal
 
-def add_primary(figure, bd):
+def add_primary(figure, bd, surf = True):
     
     fadedColor = fade_color(bd.color)
     
@@ -222,37 +222,38 @@ def add_primary(figure, bd):
     y = bd.eqr * np.cos(theta) * np.cos(phi)
     z = bd.eqr * np.sin(theta)
     
-    figure.add_trace(go.Mesh3d(
-                                x = np.ndarray.flatten(x),
-                                y = np.ndarray.flatten(y),
-                                z = np.ndarray.flatten(z),
-                                alphahull = 0,
-                                color = 'rgb'+str(fadedColor),
-                                opacity = 0.5,
-                                name = bd.name,
-                                showlegend = False,
-                                hovertemplate = "Central body"
-                                # hoverinfo = 'skip'
-                                    ))
-    
-    # figure.add_trace(go.Scatter3d(
-    #                               x = np.array([0]),
-    #                               y = np.array([0]),
-    #                               z = np.array([0]),
-    #                               mode = "markers",
-    #                               marker = dict(
-    #                                   color = 'rgb'+str(bd.color),
-    #                                   symbol = "circle"),
-    #                               name = bd.name,
-    #                               showlegend = False,
-    #                               hovertemplate = "Central body"
-    #                               ))
+    if surf:
+        figure.add_trace(go.Mesh3d(
+                                    x = np.ndarray.flatten(x),
+                                    y = np.ndarray.flatten(y),
+                                    z = np.ndarray.flatten(z),
+                                    alphahull = 0,
+                                    color = 'rgb'+str(fadedColor),
+                                    opacity = 0.5,
+                                    name = bd.name,
+                                    showlegend = False,
+                                    hovertemplate = "Central body"
+                                    # hoverinfo = 'skip'
+                                        ))
+    else:
+        figure.add_trace(go.Scatter3d(
+                                      x = np.array([0]),
+                                      y = np.array([0]),
+                                      z = np.array([0]),
+                                      mode = "markers",
+                                      marker = dict(
+                                          color = 'rgb'+str(bd.color),
+                                          symbol = "circle"),
+                                      name = bd.name,
+                                      showlegend = False,
+                                      hovertemplate = "Central body"
+                                      ))
 
-def add_body(figure, bd, time, surf = True):
+def add_body(figure, bd, time, surf=True, pos=None, size=8, symbol='circle'):
     
+    if pos is None:
+        pos = bd.orb.get_state_vector(time)[0]
     fadedColor = fade_color(bd.color)
-    
-    pos = bd.orb.get_state_vector(time)[0]
     
     if surf:
         size = 10
@@ -276,17 +277,43 @@ def add_body(figure, bd, time, surf = True):
                                         ))
     else:    
         figure.add_trace(go.Scatter3d(
-                                      x = pos[0],
-                                      y = pos[1],
-                                      z = pos[2],
+                                      x = [pos[0]],
+                                      y = [pos[1]],
+                                      z = [pos[2]],
                                       mode = "markers",
                                       marker = dict(
-                                          color = 'rgb'+str(fadedColor),
-                                          symbol = "circle"),
+                                          color = 'rgb'+str(bd.color),
+                                          symbol = symbol,
+                                          size = size),
                                       showlegend = False,
-                                      hoverinfo = 'skip'
+                                      hoverinfo = 'skip',
                                       ))
-        
+
+def add_soi(figure, bd, time, pos=None):
+    
+    if pos is None:
+        pos = bd.orb.get_state_vector(time)[0]
+    fadedColor = fade_color(bd.color)
+    
+    size = 10
+    phi = np.linspace(0, 2*math.pi, size)
+    theta = np.linspace(-math.pi/2, math.pi/2, size)
+    phi, theta = np.meshgrid(phi, theta)
+    
+    x = bd.soi * np.cos(theta) * np.sin(phi) + pos[0]
+    y = bd.soi * np.cos(theta) * np.cos(phi) + pos[1]
+    z = bd.soi * np.sin(theta) + pos[2]
+    
+    figure.add_trace(go.Mesh3d(
+                                x = np.ndarray.flatten(x),
+                                y = np.ndarray.flatten(y),
+                                z = np.ndarray.flatten(z),
+                                alphahull = 0,
+                                color = 'rgb'+str(fadedColor),
+                                opacity = 0.1,
+                                showlegend = False,
+                                hoverinfo = 'skip'
+                                    ))
 
 def add_burn_arrow(figure, burnDV, burnTime, startOrbit, dateFormat = None,
                        scale=1/2, name = 'Burn', color = (255,0,0)):
@@ -883,34 +910,68 @@ app.layout = html.Div(className='row', children=[
     html.Div(className='four columns', children = [
         html.Div([
             html.H3('Orbit Plots'),
-            dcc.Loading(id='transfer-loading', type='circle', children=[
             html.Div([
+            dcc.Loading(id='transfer-loading', type='circle', children=[
                 dcc.Markdown('**Transfer Trajectory**'),
-                    dcc.Graph(
-                        id='transfer-graph',
-                        figure = go.Figure(layout = dict(
-                                            xaxis = dict(visible=False),
-                                            yaxis = dict(visible=False))),
-                        ),
+                dcc.Graph(
+                    id='transfer-graph',
+                    figure = go.Figure(layout = dict(
+                                        xaxis = dict(visible=False),
+                                        yaxis = dict(visible=False))),
+                    ),
                     ]),
+                dcc.Slider(
+                    id='transfer-slider',
+                    min=0,
+                    max=1,
+                    step=1,
+                    marks = dict(),
+                    value=0,
+                    included=False,
+                    updatemode='mouseup'
+                    ),
+                ]),
             html.Div(id='ejection-div', style={'display': 'none'}, children=[
+            dcc.Loading(id='ejection-loading', type='circle', children=[
                 dcc.Markdown('**Ejection Trajectory**'),
-                    dcc.Graph(
-                        id='ejection-graph',
-                        figure = go.Figure(layout = dict(
-                                            xaxis = dict(visible=False),
-                                            yaxis = dict(visible=False))),
-                        ),
+                dcc.Graph(
+                    id='ejection-graph',
+                    figure = go.Figure(layout = dict(
+                                        xaxis = dict(visible=False),
+                                        yaxis = dict(visible=False))),
+                    ),
                     ]),
+                dcc.Slider(
+                    id='ejection-slider',
+                    min=0,
+                    max=1,
+                    step=1,
+                    marks = dict(),
+                    value=0,
+                    included=False,
+                    updatemode='mouseup'
+                    ),
+                ]),
             html.Div(id='insertion-div', style={'display': 'none'}, children=[
-                    dcc.Markdown('**Insertion Trajectory**'),
-                    dcc.Graph(
-                        id='insertion-graph',
-                        figure = go.Figure(layout =dict(
-                                            xaxis = dict(visible=False),
-                                            yaxis = dict(visible=False))),
-                        ),
+            dcc.Loading(id='insertion-loading', type='circle', children=[
+                dcc.Markdown('**Insertion Trajectory**'),
+                dcc.Graph(
+                    id='insertion-graph',
+                    figure = go.Figure(layout =dict(
+                                        xaxis = dict(visible=False),
+                                        yaxis = dict(visible=False))),
+                    ),
                     ]),
+                dcc.Slider(
+                    id='insertion-slider',
+                    min=0,
+                    max=1,
+                    step=1,
+                    marks = dict(),
+                    value=0,
+                    included=False,
+                    updatemode='mouseup'
+                    ),
                 ]),
             ]),
         ]),
@@ -1004,7 +1065,7 @@ def update_end_a(end_body_name, park_alt, system_data):
     )
 def update_early_start_year2(early_start_year, prev_state):
     if early_start_year == prev_state:
-        return prev_state
+        return dash.no_update
     else:
         return early_start_year
 
@@ -1015,7 +1076,7 @@ def update_early_start_year2(early_start_year, prev_state):
     )
 def update_early_start_year(early_start_year2, prev_state):
     if early_start_year2 == prev_state:
-        return prev_state
+        return dash.no_update
     else:
         return early_start_year2
 
@@ -1026,7 +1087,7 @@ def update_early_start_year(early_start_year2, prev_state):
     )
 def update_early_start_day2(early_start_day, prev_state):
     if early_start_day == prev_state:
-        return prev_state
+        return dash.no_update
     else:
         return early_start_day
 
@@ -1037,7 +1098,7 @@ def update_early_start_day2(early_start_day, prev_state):
     )
 def update_early_start_day(early_start_day2, prev_state):
     if early_start_day2 == prev_state:
-        return prev_state
+        return dash.no_update
     else:
         return early_start_day2
 
@@ -1194,7 +1255,23 @@ def update_porkchop_data(nClicks, system, dateFormat,
     return jsonpickle.encode(porkTable)
 
 @app.callback(
-    Output('transfer-div','children'),
+    [Output('transfer-div','children'),
+     Output('transfer-slider','min'),
+     Output('transfer-slider','max'),
+     Output('transfer-slider','step'),
+     Output('transfer-slider','marks'),
+     Output('transfer-slider','value'),
+     Output('ejection-slider','min'),
+     Output('ejection-slider','max'),
+     Output('ejection-slider','step'),
+     Output('ejection-slider','marks'),
+     Output('ejection-slider','value'),
+     Output('insertion-slider','min'),
+     Output('insertion-slider','max'),
+     Output('insertion-slider','step'),
+     Output('insertion-slider','marks'),
+     Output('insertion-slider','value'),
+     ],
     [Input('porkchop-div','children'),
      Input('porkchop-graph','clickData')],
     [State('dateFormat-div','children'),
@@ -1204,7 +1281,11 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat, matchMo):
     
     ctx = dash.callback_context
     if not ctx.triggered:
-        return dash.no_update
+        return dash.no_update, dash.no_update, dash.no_update,              \
+            dash.no_update, dash.no_update, dash.no_update, dash.no_update, \
+            dash.no_update, dash.no_update, dash.no_update, dash.no_update, \
+            dash.no_update, dash.no_update, dash.no_update, dash.no_update, \
+            dash.no_update;
     
     porkTable = jsonpickle.decode(porkTable)
     
@@ -1232,7 +1313,55 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat, matchMo):
             transfer.adjust_start_orbit_mo()
         if not transfer.insertionTrajectory is None:
             transfer.adjust_end_orbit_mo()
-    return jsonpickle.encode(transfer)
+    
+    # set slider attributes for transfer plot
+    trMinTime = transfer.get_departure_burn_time()
+    trMaxTime = transfer.startTime + transfer.flightTime
+    trStep = 1, 
+    trMarks = {
+        trMinTime: 'Departure',
+        trMaxTime: 'Target Encounter'
+        }
+    trValue = trMinTime
+    
+    # set slider attributes for ejection plot
+    if not transfer.ejectionTrajectory is None:
+        ejMinTime = transfer.get_departure_burn_time()
+        ejMaxTime = transfer.startTime
+        ejStep = 1
+        ejMarks = {
+            ejMinTime: 'Departure Burn',
+            ejMaxTime: 'SoI Escape',
+            }
+        ejValue = ejMinTime
+    else:
+        ejMinTime = 0
+        ejMaxTime = 1
+        ejStep = 1
+        ejMarks = dict()
+        ejValue = 0
+    
+    # set slider attributes for insertion plot
+    if not transfer.insertionTrajectory is None:
+        inMinTime = transfer.startTime + transfer.flightTime
+        inMaxTime = transfer.get_arrival_burn_time()
+        inStep = 1
+        inMarks = {
+            inMinTime: 'SoI Encounter',
+            inMaxTime: 'Arrival Burn',
+            }
+        inValue = inMinTime
+    else:
+        inMinTime = 0
+        inMaxTime = 1
+        inStep = 1
+        inMarks = dict()
+        inValue = 0
+    
+    return jsonpickle.encode(transfer),                                     \
+            trMinTime, trMaxTime, trStep, trMarks, trValue,                 \
+            ejMinTime, ejMaxTime, ejStep, ejMarks, ejValue,                 \
+            inMinTime, inMaxTime, inStep, inMarks, inValue,
 
 @app.callback(
     Output('porkchop-graph','figure'),
@@ -1561,14 +1690,51 @@ def update_transfer_details(chosenTransfer, dateFormat):
 @app.callback(
     Output('transfer-graph', 'figure'),
     [Input('transfer-div', 'children'),
-     Input('dateFormat-div', 'children')]
+     Input('transfer-slider', 'value'),
+     Input('dateFormat-div', 'children')],
+    [State('transfer-graph', 'figure')]
     )
-def update_transfer_plot(chosenTransfer, dateFormat):
+def update_transfer_plot(chosenTransfer, sliderTime, dateFormat, prevFig):
+    
+    if chosenTransfer is None:
+        return prevFig
+    
+    chosenTransfer = jsonpickle.decode(chosenTransfer)
+    
+    # ctx = dash.callback_context
+    # trUpdate = 'transfer-div' in ctx.triggered[0]['prop_id'].split('.')
+    # if (not trUpdate) and (len(prevFig['data'])>10):
+    #     numConstantTraces = 11
+    #     numTracesPerBody = 3
+    #     numSatellites = len(chosenTransfer.transferOrbit.prim.satellites)
+        
+    #     prevFig = go.Figure(prevFig)
+        
+    #     for ii, bd in enumerate(chosenTransfer.transferOrbit.prim.satellites):
+    #         pos = bd.orb.get_state_vector(sliderTime)[0]
+    #         for jj in range(numTracesPerBody):
+    #             prevFig.plotly_restyle(                                     \
+    #                 {'x': np.array([pos[0]]),                               \
+    #                  'y': np.array([pos[1]]),                               \
+    #                  'z': np.array([pos[2]])},                              \
+    #                 numConstantTraces + numTracesPerBody*ii + jj)
+        
+    #     if (not chosenTransfer.planeChange) or                              \
+    #     (sliderTime < chosenTransfer.startTime + chosenTransfer.planeChangeDT):
+    #       pos = chosenTransfer.transferOrbit.get_state_vector(sliderTime)[0]
+    #     else:
+    #       pos = chosenTransfer.transferOrbitPC.get_state_vector(sliderTime)[0]
+        
+    #     prevFig.plotly_restyle(                                             \
+    #             {'x': np.array([pos[0]]),                                   \
+    #              'y': np.array([pos[1]]),                                   \
+    #              'z': np.array([pos[2]])},                                  \
+    #             numConstantTraces + numTracesPerBody + numSatellites)
+    
+    #     return prevFig
+    
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
-    if chosenTransfer is None:
-        return fig
-    chosenTransfer = jsonpickle.decode(chosenTransfer)
     
     burnTime = chosenTransfer.get_departure_burn_time()
     startTime = chosenTransfer.startTime
@@ -1581,16 +1747,15 @@ def update_transfer_plot(chosenTransfer, dateFormat):
     
     # record highest altitudes to use as axis limits
     # add transfer orbit
-    maxVals = [add_orbit(fig, chosenTransfer.transferOrbit, startTime,      \
-                         pcTime, 201, dateFormat, name = 'Transfer')];
+    add_orbit(fig, chosenTransfer.transferOrbit, startTime,                 \
+              pcTime, 201, dateFormat, name = 'Transfer');
     
     # if it exists, add the transfer orbit after plane change
     if chosenTransfer.planeChange is True:
-        maxVals = np.append(maxVals,
-                            add_orbit(fig, chosenTransfer.transferOrbitPC,  \
-                                      pcTime, endTime, 201, dateFormat,     \
-                                      name = 'Transfer (plane change)'));
-        add_burn_arrow(fig, chosenTransfer.planeChangeDV, pcTime,         \
+        add_orbit(fig, chosenTransfer.transferOrbitPC,                      \
+                  pcTime, endTime, 201, dateFormat,                         \
+                  name = 'Transfer (plane change)');
+        add_burn_arrow(fig, chosenTransfer.planeChangeDV, pcTime,           \
                        chosenTransfer.transferOrbit, dateFormat, scale=1/4);
     
     # if the starting orbit is around the primary body, add it
@@ -1614,33 +1779,39 @@ def update_transfer_plot(chosenTransfer, dateFormat):
                                chosenTransfer.transferOrbit, dateFormat,    \
                                scale = 1/4);
     
-    # add orbits/bodies for all satellites around the primary body
+    # add orbits for all satellites around the primary body
     for bd in chosenTransfer.transferOrbit.prim.satellites:
-        # if bd.orb.get_period() <                                            \
-        # (chosenTransfer.flightTime + chosenTransfer.ejectionDT):
-        #     bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
-        #                           chosenTransfer.get_departure_burn_time() +\
-        #                           bd.orb.get_period(),                      \
-        #                           501);
-        # else:
-        #     bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
-        #                           chosenTransfer.startTime +                \
-        #                           chosenTransfer.flightTime,                \
-        #                           501);
-        maxVals = np.append(maxVals,
-                            add_orbit(fig, bd.orb, burnTime, endTime, 201, \
-                                      dateFormat, bd.color, bd.name));
-        add_body(fig, bd, chosenTransfer.get_departure_burn_time())
+        add_orbit(fig, bd.orb, burnTime, endTime, 201,                      \
+                  dateFormat, bd.color, bd.name);
     
     # add the primary body at the origin
-    add_primary(fig, chosenTransfer.transferOrbit.prim)
+    add_primary(fig, chosenTransfer.transferOrbit.prim, True)
+    add_primary(fig, chosenTransfer.transferOrbit.prim, False)
     
     # finalize axis limit value
-    lim = np.amax(maxVals)*1.25
+    if chosenTransfer.transferOrbit.prim.soi is None:
+        furthestSatellite = chosenTransfer.transferOrbit.prim.satellites[-1]
+        lim = 1.25 * furthestSatellite.orb.a * (1 + furthestSatellite.orb.ecc)
+    else:
+        lim = chosenTransfer.transferOrbit.prim.soi
     
     # add transfer phase angle illustration
     add_transfer_phase_angle(fig, chosenTransfer,
                              1.5*chosenTransfer.transferOrbit.a)
+    
+    # Second to last, add body, SoI positions at slider time
+    for bd in chosenTransfer.transferOrbit.prim.satellites:
+        add_body(fig, bd, sliderTime, True)
+        add_body(fig, bd, sliderTime, False)
+        add_soi(fig, bd, sliderTime)
+    
+    # Lastly, add marker for vessel position at slider time
+    if (not chosenTransfer.planeChange) or                                  \
+       (sliderTime < chosenTransfer.startTime + chosenTransfer.planeChangeDT):
+           vessel = Body('Vessel',0,0,0,chosenTransfer.transferOrbit)
+    else:
+           vessel = Body('Vessel',0,0,0,chosenTransfer.transferOrbitPC)
+    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'diamond')
     
     # update the plot layout with blank axes, dark grey background, etc
     fig.update_layout(
@@ -1676,15 +1847,17 @@ def update_transfer_plot(chosenTransfer, dateFormat):
                 )
             )
         )
+    
     return fig
 
 @app.callback(
     [Output('ejection-graph', 'figure'),
      Output('ejection-div', 'style')],
     [Input('transfer-div', 'children'),
+     Input('ejection-slider', 'value'),
      Input('dateFormat-div', 'children')]
     )
-def update_ejection_plot(chosenTransfer, dateFormat):
+def update_ejection_plot(chosenTransfer, sliderTime, dateFormat):
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
     if chosenTransfer is None:
@@ -1705,36 +1878,20 @@ def update_ejection_plot(chosenTransfer, dateFormat):
     add_burn_arrow(fig, chosenTransfer.ejectionDV, burnTime,                \
                    chosenTransfer.startOrbit, dateFormat);
     
-    # record highest altitudes for 3D plot limits
-    maxVals = [10*chosenTransfer.startOrbit.a]
-    
     # add starting orbit
-    maxVals = np.append(maxVals,
-                        add_orbit(fig, chosenTransfer.startOrbit,           \
-                        burnTime - chosenTransfer.startOrbit.get_period()/2,\
-                        burnTime + chosenTransfer.startOrbit.get_period()/2,\
-                        201, dateFormat,                                    \
-                        name = 'Starting Orbit', style = 'dot', fade = False)
-                        );
+    add_orbit(fig, chosenTransfer.startOrbit,                               \
+              burnTime - chosenTransfer.startOrbit.get_period()/2,          \
+              burnTime + chosenTransfer.startOrbit.get_period()/2,          \
+              201, dateFormat,                                              \
+              name = 'Starting Orbit', style = 'dot', fade = False);
     
-    # add bodies/orbits of satellite bodies around the primary body
+    # add orbits of satellite bodies around the primary body
     for bd in chosenTransfer.ejectionTrajectory.prim.satellites:
-        # if bd.orb.get_period() < chosenTransfer.ejectionDT:
-        #     bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
-        #                           chosenTransfer.get_departure_burn_time() +\
-        #                           bd.orb.get_period(),                      \
-        #                           501);
-        # else:
-        #     bdTimes = np.linspace(chosenTransfer.get_departure_burn_time(), \
-        #                           chosenTransfer.startTime,                 \
-        #                           501);
-        maxVals = np.append(maxVals,
-                            add_orbit(fig, bd.orb, burnTime, escTime, 201,  \
-                                      dateFormat, bd.color, bd.name));
-        add_body(fig, bd, chosenTransfer.get_departure_burn_time())
+        add_orbit(fig, bd.orb, burnTime, escTime, 201,                      \
+                  dateFormat, bd.color, bd.name);
     
     # finalize value for axis limits
-    lim = np.amax(maxVals)*1.25
+    lim = chosenTransfer.ejectionTrajectory.prim.soi
     
     # add ejection burn angle-from-prograde illustration
     add_ejection_angle(fig, chosenTransfer)
@@ -1743,7 +1900,18 @@ def update_ejection_plot(chosenTransfer, dateFormat):
     add_prograde_trace(fig, chosenTransfer, chosenTransfer.startOrbit.prim, \
                        burnTime - chosenTransfer.ejectionDT,                \
                        burnTime + chosenTransfer.ejectionDT, 201);
-    add_primary(fig, chosenTransfer.ejectionTrajectory.prim)
+    add_primary(fig, chosenTransfer.ejectionTrajectory.prim, True)
+    add_primary(fig, chosenTransfer.ejectionTrajectory.prim, False)
+    
+    # Second to last, add body, SoI positions at slider time
+    for bd in chosenTransfer.ejectionTrajectory.prim.satellites:
+        add_body(fig, bd, sliderTime, True)
+        add_body(fig, bd, sliderTime, False)
+        add_soi(fig, bd, sliderTime)
+    
+    # Lastly, add marker for vessel position at slider time
+    vessel = Body('Vessel',0,0,0,chosenTransfer.ejectionTrajectory)
+    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'diamond')
     
     # update the plot layout with blank axes, dark grey background, etc
     fig.update_layout(
@@ -1785,9 +1953,10 @@ def update_ejection_plot(chosenTransfer, dateFormat):
     [Output('insertion-graph', 'figure'),
      Output('insertion-div', 'style')],
     [Input('transfer-div', 'children'),
+     Input('insertion-slider', 'value'),
      Input('dateFormat-div', 'children')]
     )
-def update_insertion_plot(chosenTransfer, dateFormat):
+def update_insertion_plot(chosenTransfer, sliderTime, dateFormat):
     
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
@@ -1807,62 +1976,44 @@ def update_insertion_plot(chosenTransfer, dateFormat):
     else:
         endTime = burnTime
     
-    # parkTimes = np.linspace(burnTime,                                       \
-    #                         chosenTransfer.endOrbit.get_period() + burnTime,\
-    #                         501);
-    
-    # inTimes = np.linspace(encTime, burnTime, 501);
-    
-    # inTimesGeom = np.geomspace(-chosenTransfer.insertionDT, -1, 501) +      \
-    #               burnTime + 1;
-    
-    # if chosenTransfer.ignoreInsertion:
-    #     inTimesGeom = np.append(                                            \
-    #         inTimesGeom,                                                    \
-    #         np.geomspace(1,chosenTransfer.insertionDT,501) + burnTime - 1);
-    
-    # add insertion trajectory
     add_orbit(fig, chosenTransfer.insertionTrajectory, encTime, endTime,    \
               501, dateFormat, name = 'Insertion');
     
-    # record highest altitudes for 3D plot limits
-    maxVals = [10*chosenTransfer.endOrbit.a]
-    
     # add ending orbit
     if not chosenTransfer.ignoreInsertion:
-        maxVals=np.append(maxVals,
-                          add_orbit(fig, chosenTransfer.endOrbit,           \
-                          burnTime - chosenTransfer.endOrbit.get_period()/2,\
-                          burnTime + chosenTransfer.endOrbit.get_period()/2,\
-                                    201, dateFormat,                        \
-                                    name = 'Ending Orbit', style = 'dot',   \
-                                    fade = False));
+        add_orbit(fig, chosenTransfer.endOrbit,                             \
+                  burnTime - chosenTransfer.endOrbit.get_period()/2,        \
+                  burnTime + chosenTransfer.endOrbit.get_period()/2,        \
+                  201, dateFormat,                                          \
+                  name = 'Ending Orbit', style = 'dot',                     \
+                  fade = False);
         add_burn_arrow(fig, chosenTransfer.insertionDV, burnTime,           \
                    chosenTransfer.insertionTrajectory, dateFormat);
     
     # add bodies/orbits of satellite bodies around the primary body
     for bd in chosenTransfer.insertionTrajectory.prim.satellites:
-        # if bd.orb.get_period() < chosenTransfer.insertionDT:
-        #     bdTimes = np.linspace(encTime,                                  \
-        #                           encTime + bd.orb.get_period(),            \
-        #                           501);
-        # else:
-        #     bdTimes = np.linspace(encTime, burnTime, 501);
-        maxVals = np.append(maxVals,
-                            add_orbit(fig, bd.orb, encTime, endTime, 201,   \
-                                      dateFormat, bd.color, bd.name));
-        add_body(fig, bd, encTime)
+        add_orbit(fig, bd.orb, encTime, endTime, 201,                       \
+                  dateFormat, bd.color, bd.name);
     
     # finalize value for axis limits
-    lim = np.amax(maxVals)*1.25
-    if lim < chosenTransfer.startOrbit.a * 2:
-        lim = chosenTransfer.startOrbit.a * 2
+    lim = chosenTransfer.insertionTrajectory.prim.soi
     
     # add trace for primary body's position centered at the burn time
     add_prograde_trace(fig, chosenTransfer, chosenTransfer.endOrbit.prim,   \
                        burnTime - chosenTransfer.insertionDT,               \
                        burnTime + chosenTransfer.insertionDT, 201);
-    add_primary(fig, chosenTransfer.insertionTrajectory.prim)
+    add_primary(fig, chosenTransfer.insertionTrajectory.prim, True)
+    add_primary(fig, chosenTransfer.insertionTrajectory.prim, False)
+    
+    # Second to last, add body, SoI positions at slider time
+    for bd in chosenTransfer.insertionTrajectory.prim.satellites:
+        add_body(fig, bd, sliderTime, True)
+        add_body(fig, bd, sliderTime, False)
+        add_soi(fig, bd, sliderTime)
+    
+    # Lastly, add marker for vessel position at slider time
+    vessel = Body('Vessel',0,0,0,chosenTransfer.insertionTrajectory)
+    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'diamond')
     
     # update the plot layout with blank axes, dark grey background, etc
     fig.update_layout(
