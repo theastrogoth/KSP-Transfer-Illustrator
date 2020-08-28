@@ -1,9 +1,13 @@
-# -*- coding: utf-8 -*-
+import os
+from flask import Flask, send_from_directory
+from urllib.parse import quote as urlquote
+
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
+
 import jsonpickle
 import math
 import numpy as np
@@ -13,11 +17,18 @@ from body import Body
 from transfer import Transfer
 from prktable import PorkchopTable
 
+
+DOWNLOAD_DIRECTORY = "/project/app_generated_files"
+
+if not os.path.exists(DOWNLOAD_DIRECTORY):
+    os.makedirs(DOWNLOAD_DIRECTORY)
+
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+server = Flask(__name__)
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets,
+                server=server)
 
-server = app.server
 app.title='KSP Transfer Illustrator'
 
 #%% read solar system data
@@ -578,6 +589,12 @@ def add_reference_line(figure, lim, style='dash'):
         showlegend = False,
         ))
 
+#%% download functions
+
+@app.server.route('/download/<path:path>')
+def serve_static(path):
+    return send_from_directory(DOWNLOAD_DIRECTORY, path, as_attachment=True)
+
 #%% app layout
 
 app.layout = html.Div(className='row', children=[
@@ -1009,6 +1026,10 @@ app.layout = html.Div(className='row', children=[
                     included=False,
                     updatemode='mouseup'
                     ),
+                html.A(children=html.Button('Download'),
+                       id='transferPlot-download',
+                       download="TransferPlot.html", href="",
+                       target="_blank"),
                 ]),
             html.Div(id='ejection-div', style={'display': 'none'}, children=[
             dcc.Loading(id='ejection-loading', type='circle', children=[
@@ -1030,6 +1051,10 @@ app.layout = html.Div(className='row', children=[
                     included=False,
                     updatemode='mouseup'
                     ),
+                html.A(children=html.Button('Download'),
+                       id='ejectionPlot-download',
+                       download="EjectionPlot.html", href="",
+                       target="_blank"),
                 ]),
             html.Div(id='insertion-div', style={'display': 'none'}, children=[
             dcc.Loading(id='insertion-loading', type='circle', children=[
@@ -1051,6 +1076,10 @@ app.layout = html.Div(className='row', children=[
                     included=False,
                     updatemode='mouseup'
                     ),
+                html.A(children=html.Button('Download'),
+                       id='insertionPlot-download',
+                       download="InsertionPlot.html", href="",
+                       target="_blank"),
                 ]),
             ]),
         ]),
@@ -1767,7 +1796,8 @@ def update_transfer_details(chosenTransfer, dateFormat):
             
 
 @app.callback(
-    Output('transfer-graph', 'figure'),
+    [Output('transfer-graph', 'figure'),
+     Output('transferPlot-download', 'href')],
     [Input('transfer-div', 'children'),
      Input('transfer-slider', 'value'),
      Input('display-checklist', 'value'),
@@ -1778,7 +1808,7 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
                          dateFormat, prevFig):
     
     if chosenTransfer is None:
-        return prevFig
+        return prevFig, ""
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     
@@ -1960,11 +1990,18 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
             )
         )
     
-    return fig
+    filename = 'TransferPlot.html'
+    path = os.path.join(DOWNLOAD_DIRECTORY, filename)
+    location = "/download/{}".format(urlquote(filename))
+    
+    fig.write_html(path)
+    
+    return fig, location
 
 @app.callback(
     [Output('ejection-graph', 'figure'),
-     Output('ejection-div', 'style')],
+     Output('ejection-div', 'style'),
+     Output('ejectionPlot-download','href')],
     [Input('transfer-div', 'children'),
      Input('ejection-slider', 'value'),
      Input('display-checklist', 'value'),
@@ -1975,12 +2012,12 @@ def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
                                   yaxis = dict(visible=False)))
     if chosenTransfer is None:
         # return fig
-        return fig, dict(display = 'none')
+        return fig, dict(display = 'none'), ""
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     if chosenTransfer.ejectionTrajectory is None:
         # return fig
-        return fig, dict(display = 'none')
+        return fig, dict(display = 'none'), ""
     
     escTime = chosenTransfer.startTime
     burnTime = chosenTransfer.get_departure_burn_time()
@@ -2085,11 +2122,19 @@ def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
                 )
             )
         )
-    return fig, dict(display = 'block')
+    
+    filename = 'EjectionPlot.html'
+    path = os.path.join(DOWNLOAD_DIRECTORY, filename)
+    location = "/download/{}".format(urlquote(filename))
+    
+    fig.write_html(path)
+    
+    return fig, dict(display = 'block'), location
 
 @app.callback(
     [Output('insertion-graph', 'figure'),
-     Output('insertion-div', 'style')],
+     Output('insertion-div', 'style'),
+     Output('insertionPlot-download', 'href')],
     [Input('transfer-div', 'children'),
      Input('insertion-slider', 'value'),
      Input('display-checklist', 'value'),
@@ -2101,12 +2146,12 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
                                   yaxis = dict(visible=False)))
     if chosenTransfer is None:
         # return fig
-        return fig, dict(display = 'none')
+        return fig, dict(display = 'none'), ""
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     if chosenTransfer.insertionTrajectory is None:
         # return fig
-        return fig, dict(display = 'none')
+        return fig, dict(display = 'none'), ""
     
     encTime = chosenTransfer.startTime + chosenTransfer.flightTime
     burnTime = chosenTransfer.get_arrival_burn_time()
@@ -2212,7 +2257,14 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
                 )
             )
         )
-    return fig, dict(display = 'block')
+    
+    filename = 'InsertionPlot.html'
+    path = os.path.join(DOWNLOAD_DIRECTORY, filename)
+    location = "/download/{}".format(urlquote(filename))
+    
+    fig.write_html(path)
+    
+    return fig, dict(display = 'block'), location
 
 if __name__ == '__main__':
     app.run_server(debug=False)
