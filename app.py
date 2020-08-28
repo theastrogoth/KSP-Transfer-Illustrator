@@ -18,7 +18,7 @@ from transfer import Transfer
 from prktable import PorkchopTable
 
 
-DOWNLOAD_DIRECTORY = "/project/app_generated_files"
+DOWNLOAD_DIRECTORY = "/tmp/app_generated_files"
 
 if not os.path.exists(DOWNLOAD_DIRECTORY):
     os.makedirs(DOWNLOAD_DIRECTORY)
