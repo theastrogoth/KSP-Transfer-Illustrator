@@ -480,7 +480,7 @@ def add_burn_arrow(figure, burnDV, burnTime, startOrbit, dateFormat = None,
     if dateFormat is None:
         dateFormat = dict(day = 6, year = 426)
     
-    dateString = seconds_to_date_string(burnTime, dateFormat)[0]
+    dateString = seconds_to_date_string(burnTime, dateFormat)
     
     direction = burnDV/norm(burnDV) * arrowLength/2
     figure.add_trace(go.Cone(
