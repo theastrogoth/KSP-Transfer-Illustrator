@@ -43,7 +43,7 @@ class Orbit:
         if timeShift is None:
             self.mo = mo
         else:
-            self.mo = self.map_angle(mo - timeShift*2*math.pi               \
+            self.mo = self.map_angle(-mo + timeShift*2*math.pi              \
                                      / self.get_period())
         
     @classmethod
