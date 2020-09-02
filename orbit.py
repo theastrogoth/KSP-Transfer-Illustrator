@@ -40,11 +40,9 @@ class Orbit:
         self.lan = lan
         self.prim = prim
         
-        if timeShift is None:
-            self.mo = mo
-        else:
-            self.mo = self.map_angle(mo - timeShift*2*math.pi               \
-                                     / self.get_period())
+        self.mo = mo
+        if not timeShift is None:
+            self.mo = self.get_mean_anomaly(-timeShift)
         
     @classmethod
     def from_state_vector(cls,pos,vel,t,primaryBody):

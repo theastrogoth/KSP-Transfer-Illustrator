@@ -68,11 +68,12 @@ def get_burn_components(burnDV, position, velocity, normalDir = None):
         normalDir = normalDir/norm(normalDir)
     
     progradeDir = velocity/norm(velocity)
-    radialDir = position/norm(position)
+    radialDir = np.cross(progradeDir, normalDir)
+    radialDir = radialDir/norm(radialDir)
     
     prograde = np.dot(burnDV, progradeDir)
     normal =   np.dot(burnDV, normalDir)
-    radial =   np.dot(burnDV, -radialDir)
+    radial =   np.dot(burnDV, radialDir)
     
     return prograde, normal, radial
 
@@ -104,6 +105,19 @@ def burn_components_string(burnDV, position, velocity, normalDir = None):
             "{:.2f}".format(-radial) + ' m/s anti-radial';
     
     return burnString
+
+def burn_components_to_absolute(prograde, normal, radial, position, velocity,
+                                normalDir = None):
+    if normalDir is None:
+        normalDir = np.cross(position, velocity)
+        normalDir = normalDir/norm(normalDir)
+    
+    progradeDir = velocity/norm(velocity)
+    radialDir = np.cross(progradeDir, normalDir)
+    radialDir = radialDir/norm(radialDir)
+    
+    burnDV = prograde*progradeDir + normal*normalDir + radial*radialDir
+    return burnDV
 
 #%% porkchop plot functions
 

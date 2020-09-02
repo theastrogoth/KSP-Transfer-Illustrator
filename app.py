@@ -1062,11 +1062,13 @@ def update_transfer_details(chosenTransfer, dateFormat):
     
     departureTime = chosenTransfer.get_departure_burn_time()
     departureString = '**Departure:** ' +                                   \
-                      seconds_to_date_string(departureTime, dateFormat)
+                      seconds_to_date_string(departureTime, dateFormat) +   \
+                    ' (UT ' + "{:.2f}".format(departureTime) + ' s)';
     
     arrivalTime = chosenTransfer.get_arrival_burn_time()
     arrivalString = '**Arrival:** ' +                                       \
-                    seconds_to_date_string(arrivalTime, dateFormat);
+                    seconds_to_date_string(arrivalTime, dateFormat) +       \
+                    ' (UT ' + "{:.2f}".format(arrivalTime) + ' s)';
     
     flightTime = arrivalTime - departureTime
     flightDays = seconds_to_days(flightTime, dateFormat)
@@ -1129,7 +1131,8 @@ def update_transfer_details(chosenTransfer, dateFormat):
         planeChangeTime = chosenTransfer.startTime +                        \
             chosenTransfer.planeChangeDT
         planeChangeTimeString = '**Plane Change Time:** ' +                 \
-            seconds_to_date_string(planeChangeTime, dateFormat)
+            seconds_to_date_string(planeChangeTime, dateFormat) +           \
+                        ' (UT ' + "{:.2f}".format(departureTime) + ' s)';
         
         transferOrbitPCString = '**Transfer Orbit (plane change):**\n' +    \
             str(chosenTransfer.transferOrbitPC);
@@ -1150,7 +1153,8 @@ def update_transfer_details(chosenTransfer, dateFormat):
         
         escapeTime = chosenTransfer.startTime
         escapeTimeString = '**Ejection SOI Escape:** ' +                    \
-            seconds_to_date_string(escapeTime, dateFormat)
+            seconds_to_date_string(escapeTime, dateFormat)+                 \
+                    ' (UT ' + "{:.2f}".format(escapeTime) + ' s)';
         
         ejectionOrbitString = '**Ejection Orbit:**\n' +                     \
             str(chosenTransfer.ejectionTrajectory)
@@ -1167,7 +1171,8 @@ def update_transfer_details(chosenTransfer, dateFormat):
         
         encounterTime = chosenTransfer.startTime + chosenTransfer.flightTime
         encounterTimeString = '**Arrival SOI Encounter:** ' +               \
-            seconds_to_date_string(encounterTime, dateFormat)
+            seconds_to_date_string(encounterTime, dateFormat) +             \
+                    ' (UT ' + "{:.2f}".format(encounterTime) + ' s)';
         
         insertionOrbitString = '**Insertion Orbit:**\n' +                   \
             str(chosenTransfer.insertionTrajectory)

@@ -20,9 +20,6 @@ class Transfer:
             park orbit used is the semimajor axis
         cheapEndOrb (bool): if true, the only parameter of the ending park
             orbit used is the semimajor axis
-        matchStartMo (bool): if true, start and flight times will be adjusted
-            to give a transfer that matches the starting orbits mean anomaly
-            at epoch
         startPos (vector): if provided, fixes start location of the transfer
                 orbit given position
         endPos (vector): : if provided, fixes target location of the transfer
@@ -53,8 +50,7 @@ class Transfer:
     
     def __init__(self, startOrbit, endOrbit, startTime, flightTime, 
                  planeChange = False, ignoreInsertion = False,
-                 cheapStartOrb = False, cheapEndOrb = True, 
-                 matchStartMo = False):
+                 cheapStartOrb = False, cheapEndOrb = True):
         
         # Assign input attributes
         self.startOrbit = startOrbit
@@ -882,50 +878,46 @@ class Transfer:
             self.endOrbit.map_angle(self.endOrbit.mo + dMeanAnom);
     
     
-    def match_start_mean_anomaly(self, tol = 0.1, maxIt = 20):
+    def match_start_mean_anomaly(self, tol = 1, maxIt = 20):
         if self.ejectionTrajectory is None:
             self.genetic_refine()
             return
-        self.startOrbit = self.originalStartOrbit
+        self.startOrbit = copy(self.originalStartOrbit)
         originalStartTime = self.startTime
         it = 0
         err = tol+1
         while abs(err) > tol:
             it = it+1
+            
             if it>maxIt:
                 self.startTime = originalStartTime
                 self.genetic_refine()
                 return
-            elif it == 1:
-                burnTime = self.get_departure_burn_time()
-                burnPos = self.ejectionTrajectory.get_state_vector(burnTime)[0];
-                burnTrueAnom = self.startOrbit.get_angle_in_orbital_plane(  \
-                        self.startOrbit.get_time(0), burnPos);
-                burnMeanAnom = self.startOrbit.get_mean_anomaly(            \
-                    self.startOrbit.get_time(burnTrueAnom))
-                orbMeanAnom = self.startOrbit.get_mean_anomaly(burnTime)
-                dMeanAnom = burnMeanAnom - orbMeanAnom
-                while abs(dMeanAnom) > math.pi:
-                    dMeanAnom = dMeanAnom + math.copysign(2*math.pi, -dMeanAnom)
-                dT = self.startOrbit.get_period() * dMeanAnom / (2*math.pi)
-                err = dT
-            else:
+            
+            if it > 1:
+                self.startPos = None
+                self.endPos = None
                 self.startTime = self.startTime + dT
                 gen = self.genetic_refine()
                 if gen is None:
                     break
-                burnTime = self.get_departure_burn_time()
-                burnPos = self.ejectionTrajectory.get_state_vector(burnTime)[0];
-                burnTrueAnom = self.startOrbit.get_angle_in_orbital_plane(  \
-                        self.startOrbit.get_time(0), burnPos);
-                burnMeanAnom = self.startOrbit.get_mean_anomaly(            \
-                    self.startOrbit.get_time(burnTrueAnom))
-                orbMeanAnom = self.startOrbit.get_mean_anomaly(burnTime)
-                dMeanAnom = burnMeanAnom - orbMeanAnom
-                while abs(dMeanAnom) > math.pi:
-                    dMeanAnom = dMeanAnom + math.copysign(2*math.pi,-dMeanAnom)
-                dT = self.startOrbit.get_period() * dMeanAnom / (2*math.pi)
-                err = dT
+            
+            burnTime = self.get_departure_burn_time()
+            orbPos = self.startOrbit.get_state_vector(burnTime)[0]
+            burnPos = self.ejectionTrajectory.get_state_vector(burnTime)[0];
+            
+            burnTrueAnom = self.startOrbit.get_angle_in_orbital_plane(      \
+                    self.startOrbit.get_time(0), burnPos);
+            burnMeanAnom = self.startOrbit.get_mean_anomaly(                \
+                self.startOrbit.get_time(burnTrueAnom))
+            orbMeanAnom = self.startOrbit.get_mean_anomaly(burnTime)
+            dMeanAnom = burnMeanAnom - orbMeanAnom
+            
+            while abs(dMeanAnom) > math.pi:
+                dMeanAnom = dMeanAnom + math.copysign(2*math.pi, -dMeanAnom)
+                
+            dT = self.startOrbit.get_period() * dMeanAnom / (2*math.pi)
+            err = norm(burnPos-orbPos)
         
         return
     
@@ -981,7 +973,7 @@ class Transfer:
             norm(self.insertionDV)
     
     
-    def genetic_refine(self, num = 10, tol = 10, maxGen = 40):
+    def genetic_refine(self, num = 10, tol = 1, maxGen = 40):
         """Genetic algorithm to find start and end positions for Transfer"""
         
         # TO DO: figure out better crossover/mutation methods, 
@@ -1066,8 +1058,14 @@ class Transfer:
         """Gets error to serve as fitness for genetic algorithm."""
         
         if startPos is None:
+            if self.startPos is None:
+                self.startPos = self.startOrbit.get_state_vector(           \
+                    self.startTime)[0]
             startPos = self.startPos
         if endPos is None:
+            if self.endPos is None:
+                self.endPos = self.endOrbit.get_state_vector(               \
+                    self.startTime + self.flightTime)[0];
             endPos = self.endPos
         self.startPos = startPos
         self.endPos = endPos
