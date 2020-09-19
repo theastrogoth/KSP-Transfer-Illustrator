@@ -15,7 +15,7 @@ class Orbit:
         lan (float): longitude of the ascending node (radians)
         mo (float): mean anomaly (radians) at epoch, t=0 seconds.
         prim (Body): the body at the node (in the middle) of the orbit
-        timeshift (float): relative time in seconds of previous epoch
+        epoch (float): time in seconds of epoch
         period (float): length of an orbital period (s)
         X (array): first basis vector
         Y (array): second basis vector
@@ -24,7 +24,7 @@ class Orbit:
     """
     
     def __init__(self, a=None, ecc=None, inc=None, 
-                 argp=None, lan=None, mo=None, prim=None, timeShift=None):
+                 argp=None, lan=None, mo=None, epoch=0, prim=None):
         
         # These attributes will be filled in via methods
         self.period = None
@@ -41,8 +41,7 @@ class Orbit:
         self.prim = prim
         
         self.mo = mo
-        if not timeShift is None:
-            self.mo = self.get_mean_anomaly(-timeShift)
+        self.epoch = epoch
         
     @classmethod
     def from_state_vector(cls,pos,vel,t,primaryBody):
@@ -140,8 +139,12 @@ class Orbit:
             # Get mean anomaly at time t via Kepler's equation
             meanAnom = eccAnom - ecc*math.sin(eccAnom)
             
-            # Subtract angle traveled in time t to get mean anomaly at t=0
-            mo = meanAnom - t*math.sqrt(primaryBody.mu/a**3)
+            # # Subtract angle traveled in time t to get mean anomaly at t=0
+            # mo = meanAnom - t*math.sqrt(primaryBody.mu/a**3)
+            
+            # set t as epoch and mo to current mean anomaly
+            mo = meanAnom
+            epoch = t
             
             # Adjust angle to fall with 0 and 2pi radians
             mo = Orbit.map_angle(mo)
@@ -161,13 +164,17 @@ class Orbit:
             # Get mean anomaly at time t via Kepler's equation
             meanAnom = ecc * math.sinh(hypAnom) - hypAnom
             
-            # Subtract angle traveled in time t to get mean anomaly at t=0
-            mo = meanAnom - t*math.sqrt(primaryBody.mu/-a**3)
+            # # Subtract angle traveled in time t to get mean anomaly at t=0
+            # mo = meanAnom - t*math.sqrt(primaryBody.mu/-a**3)
+            
+            # set t as epoch and mo to current mean anomaly
+            mo = meanAnom
+            epoch = t
         
         else:
             raise Exception('invalid eccentricity')
         # Return an Orbit with the calculated Keplerian elements
-        return cls(a,ecc,inc,argp,lan,mo,primaryBody);
+        return cls(a,ecc,inc,argp,lan,mo,epoch,primaryBody);
     
     
     @staticmethod
@@ -338,7 +345,7 @@ class Orbit:
         if t == 0:
             meanAnom = self.mo
         else:
-            meanAnom = self.mo + t / (self.get_period()/(2*math.pi))
+            meanAnom = self.mo + (t-self.epoch) / (self.get_period()/(2*math.pi))
             if self.ecc < 1:
                 meanAnom = self.map_angle(meanAnom)
         return meanAnom
@@ -388,7 +395,7 @@ class Orbit:
         raise Exception('invalid eccentricity')
     
     
-    def get_time(self, trueAnom, tMin=0):
+    def get_time(self, trueAnom, tMin=None):
         """Returns the time when the orbit has the input true anomaly.
         
         Args:
@@ -415,12 +422,18 @@ class Orbit:
             meanAnom = eccAnom - self.ecc*math.sin(eccAnom)
             meanAnom = self.map_angle(meanAnom)
             
-            # Calculate time passed since epoch (t=0)
-            t = (meanAnom-self.mo)*period/(2*math.pi)
+            # Calculate time passed since epoch
+            dt = (meanAnom-self.mo)*period/(2*math.pi)
+            
+            # Get Universal Time by adding epoch
+            t = dt + self.epoch
             
             # Adjust to move beyond minimum time
-            diffRatio = (tMin-t)/period
-            return t + math.ceil(diffRatio)*period
+            if not tMin is None:
+                diffRatio = (tMin-t)/period
+                return t + math.ceil(diffRatio)*period
+            else:
+                return t
         
         # Hyperbolic case
         else:
@@ -660,5 +673,7 @@ class Orbit:
                 "{:.6f}".format(self.lan*180/math.pi) + '°\n' +             \
             '  Mean Anomaly at Epoch: ' +                                   \
                 "{:.6f}".format(self.mo) + ' radians\n' +                   \
+            '  Epoch: ' +                                                   \
+                "{:.2f}".format(self.epoch) + ' s\n' +                      \
             '  Primary Body: ' + self.prim.name;
         return string

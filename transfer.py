@@ -878,7 +878,7 @@ class Transfer:
             self.endOrbit.map_angle(self.endOrbit.mo + dMeanAnom);
     
     
-    def match_start_mean_anomaly(self, tol = 1, maxIt = 20):
+    def match_start_mean_anomaly(self, tol = 0.1, maxIt = 20):
         if self.ejectionTrajectory is None:
             self.genetic_refine()
             return

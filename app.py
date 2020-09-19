@@ -746,9 +746,9 @@ def update_porkchop_data(nClicks, system, dateFormat,
         endEpoch = 0
     
     sOrb = Orbit(startA, startEcc, startInc*math.pi/180, startArgP*math.pi/180,
-                 startLAN*math.pi/180, startMo, sBody, startEpoch)
+                 startLAN*math.pi/180, startMo, startEpoch, sBody)
     eOrb = Orbit(endA, endEcc, endInc*math.pi/180, endArgP*math.pi/180,
-                 endLAN*math.pi/180, endMo, eBody, endEpoch)
+                 endLAN*math.pi/180, endMo, endEpoch, eBody)
     # grab day and year formats
     day = dateFormat['day']         # hours per day
     year= dateFormat['year']        # days per year

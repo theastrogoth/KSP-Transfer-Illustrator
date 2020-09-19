@@ -293,7 +293,8 @@ def add_orbit(figure, orb, startTime, endTime, numPts=201, dateFormat = None,
                      "Inclination = " + "{:.4f}".format(orb.inc*180/math.pi) + "°" + "<br>" +\
                      "Argument of the Periapsis = " + "{:.4f}".format(orb.argp*180/math.pi) + "°" + "<br>" +\
                      "Longitude of Ascending Node = " + "{:.4f}".format(orb.lan*180/math.pi) + "°" + "<br>" +\
-                     "Mean Anomaly at Epoch = " + "{:.4f}".format(orb.mo) + " rad"
+                     "Mean Anomaly at Epoch = " + "{:.4f}".format(orb.mo) + " rad" + "<br>" +\
+                     "Epoch = " + "{:.2f}".format(orb.epoch) + " s"
     else:
         cData = norm(pos, axis = 0)/1000
         hoverLabel = "r = %{customdata:.4e} km"
