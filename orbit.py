@@ -4,6 +4,26 @@ from numpy.linalg import norm
 from copy import copy
 from body import Body
 
+from scipy.optimize import minimize, brentq
+
+def distance(t, *params):
+    """Gets distance betweeen positions of two orbits at a given time.
+    
+    Args:
+        t: universal time (s)
+        orbs: two orbit objects
+    
+    Returns:
+        distance in meters
+    """
+    
+    orb1, orb2, soi = params
+    
+    pos1 = orb1.get_state_vector(t)[0]
+    pos2 = orb2.get_state_vector(t)[0]
+    
+    return norm(pos1-pos2)-soi
+
 class Orbit:
     """Orbital trajectory defined by Keplerian elements and a primary body.
     
@@ -42,7 +62,8 @@ class Orbit:
         
         self.mo = mo
         self.epoch = epoch
-        
+    
+    
     @classmethod
     def from_state_vector(cls,pos,vel,t,primaryBody):
         """Generates an Orbit object from position and velocity vectors.
@@ -451,9 +472,12 @@ class Orbit:
             # Calculate mean anomaly via Keplers equation
             meanAnom = self.ecc*math.sinh(hypAnom) - hypAnom
             
-            # Calculate time difference from epoch
+            # Get Universal Time by adding epoch
+            dt = (meanAnom-self.mo)*period/(2*math.pi)
+            
+            # Calculate time passed since epoch
             # Since hyperbolic orbits are not periodic, tMin is ignored
-            return (meanAnom-self.mo)*period/(2*math.pi)
+            return dt + self.epoch
     
     
     def get_state_vector(self, t):
@@ -663,8 +687,90 @@ class Orbit:
         
         return self.map_angle(thetaVecPlane - thetaRPlane)
     
+    
+    def propogate(self, t, system=None, exclude=None):
+        """Progates the orbit until an SOI change up to a full period.
+        
+        Args:
+            t (float): universal time (seconds)
+            system (list): list of body objects in the orbit's system
+            exclude (list): list of body objects to exclude from encounter
+                            search.
+        
+        Returns:
+            list of patches (size of num or smaller).
+        """
+        
+        if system is None:
+            system = [body for body in self.prim.satellites]
+        soi = self.prim.soi
+        
+        if not exclude is None:
+            for body in exclude:
+                system.remove(body)
+        
+        if self.ecc > 1:
+            # true anomaly at escape
+            try:
+                thetaEscape = math.acos(1/self.ecc *                        \
+                                        (self.a*(1-self.ecc**2)/soi - 1))
+            except ValueError:
+                thetaEscape = math.acos(
+                    math.copysign(1, 1/self.ecc *                           \
+                                  (self.a*(1-self.ecc**2)/soi - 1)))
+            maxTime = self.get_time(thetaEscape)
+        else:
+            if soi is None:
+                maxTime = t + self.get_period()
+            else:
+                if self.a*(1+self.ecc)>soi:
+                    try:
+                        thetaEscape = math.acos(1/self.ecc *                \
+                                                (self.a*(1-self.ecc**2)/soi - 1))
+                    except ValueError:
+                        thetaEscape = math.acos(
+                            math.copysign(1, 1/self.ecc *                   \
+                                          (self.a*(1-self.ecc**2)/soi - 1)))
+                    maxTime = self.get_time(thetaEscape)
+                else:
+                    maxTime = t + self.get_period()
+        
+        intersects = []
+        intersectTimes = []
+        for body in system:
+            params = (self, body.orb, 0)
+            res = minimize(fun=distance,x0=[(t+maxTime)/2],                 \
+                           args=params, bounds=[(t, maxTime)],              \
+                           jac='2-point', method='L-BFGS-B');
+            if res.fun < body.soi:
+                intersects.append(body)
+                intersectTimes.append(res.x[0])
+                maxTime = res.x[0]
+        
+        if len(intersects)>0:
+            encBody = intersects[-1]
+            maxTime = intersectTimes[-1]
+            params = (self, encBody.orb, encBody.soi)
+            encTime = brentq(distance, t, maxTime, args=params)
+            
+            orbPos, orbVel = self.get_state_vector(encTime)
+            bodyPos, bodyVel = encBody.orb.get_state_vector(encTime)
+            relPos = orbPos - bodyPos
+            relVel = orbVel - bodyVel
+            err = distance(encTime, self, encBody.orb, encBody.soi)
+            return Orbit.from_state_vector(relPos, relVel, encTime, encBody), err
+        elif self.ecc > 1 and not (soi is None):
+            orbPos, orbVel = self.get_state_vector(maxTime)
+            bodyPos, bodyVel = self.prim.orb.get_state_vector(maxTime)
+            relPos = orbPos + bodyPos
+            relVel = orbVel + bodyVel
+            err = norm(orbPos) - soi
+            return Orbit.from_state_vector(relPos, relVel, maxTime, self.prim.orb.prim), err
+        else:
+            return None, None
+    
     def __str__(self):
-        string = '  Semi-major axis: ' + "{:.2f}".format(self.a) + ' m\n' +  \
+        string = '  Semi-major axis: ' + "{:.2f}".format(self.a) + ' m\n' + \
             '  Eccentricity: ' + "{:.6f}".format(self.ecc) + '\n'           \
             '  Inclination: '+"{:.6f}".format(self.inc*180/math.pi) + '°\n'+\
             '  Argument of Periapsis: ' +                                   \
