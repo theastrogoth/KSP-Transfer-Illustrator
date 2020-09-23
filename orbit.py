@@ -348,8 +348,12 @@ class Orbit:
         Returns:
             orbital period (seconds)
         """
+        
+        # manually set pi in attempt to improve accuracy with KSP
+        pi = 3.14159265358979
+        
         if self.period is None:
-            self.period = 2*math.pi * math.sqrt((abs(self.a)**3)/self.prim.mu)
+            self.period = 2*pi * math.sqrt((abs(self.a)**3)/self.prim.mu)
         return self.period
     
     

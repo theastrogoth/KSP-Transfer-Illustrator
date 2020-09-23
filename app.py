@@ -1063,12 +1063,12 @@ def update_transfer_details(chosenTransfer, dateFormat):
     departureTime = chosenTransfer.get_departure_burn_time()
     departureString = '**Departure:** ' +                                   \
                       seconds_to_date_string(departureTime, dateFormat) +   \
-                    ' (UT ' + "{:.2f}".format(departureTime) + ' s)';
+                    ' (UT ' + "{:.3f}".format(departureTime) + ' s)';
     
     arrivalTime = chosenTransfer.get_arrival_burn_time()
     arrivalString = '**Arrival:** ' +                                       \
                     seconds_to_date_string(arrivalTime, dateFormat) +       \
-                    ' (UT ' + "{:.2f}".format(arrivalTime) + ' s)';
+                    ' (UT ' + "{:.3f}".format(arrivalTime) + ' s)';
     
     flightTime = arrivalTime - departureTime
     flightDays = seconds_to_days(flightTime, dateFormat)
@@ -1132,7 +1132,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
             chosenTransfer.planeChangeDT
         planeChangeTimeString = '**Plane Change Time:** ' +                 \
             seconds_to_date_string(planeChangeTime, dateFormat) +           \
-                        ' (UT ' + "{:.2f}".format(departureTime) + ' s)';
+                        ' (UT ' + "{:.3f}".format(planeChangeTime) + ' s)';
         
         transferOrbitPCString = '**Transfer Orbit (plane change):**\n' +    \
             str(chosenTransfer.transferOrbitPC);
