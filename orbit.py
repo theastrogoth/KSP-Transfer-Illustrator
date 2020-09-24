@@ -761,17 +761,17 @@ class Orbit:
             bodyPos, bodyVel = encBody.orb.get_state_vector(encTime)
             relPos = orbPos - bodyPos
             relVel = orbVel - bodyVel
-            err = distance(encTime, self, encBody.orb, encBody.soi)
-            return Orbit.from_state_vector(relPos, relVel, encTime, encBody), err
+            # err = distance(encTime, self, encBody.orb, encBody.soi)
+            return Orbit.from_state_vector(relPos, relVel, encTime, encBody) #, err
         elif self.ecc > 1 and not (soi is None):
             orbPos, orbVel = self.get_state_vector(maxTime)
             bodyPos, bodyVel = self.prim.orb.get_state_vector(maxTime)
             relPos = orbPos + bodyPos
             relVel = orbVel + bodyVel
-            err = norm(orbPos) - soi
-            return Orbit.from_state_vector(relPos, relVel, maxTime, self.prim.orb.prim), err
+            # err = norm(orbPos) - soi
+            return Orbit.from_state_vector(relPos, relVel, maxTime, self.prim.orb.prim) #, err
         else:
-            return None, None
+            return None #, None
     
     def __str__(self):
         string = '  Semi-major axis: ' + "{:.2f}".format(self.a) + ' m\n' + \

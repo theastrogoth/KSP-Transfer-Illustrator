@@ -172,18 +172,20 @@ def add_marker(figure, x, y, symbol = 'x', color = 'black', size = 12):
 def fade_color(color, div = 2):
     """Divides each element of the tuple by the specified number."""
     
-    return tuple(math.floor(c/2) for c in color)
+    return tuple(math.floor(c/div) for c in color)
 
-def add_orbit(figure, orb, startTime, endTime, numPts=201, dateFormat = None,
-              apses = False, nodes = False, fullPeriod = True,
-              color = (255,255,255), name = '', style = 'solid', fade = True,):
+def add_orbit(figure, orb, startTime, endTime=None, numPts=201,
+              dateFormat=None, apses=False, nodes=False, fullPeriod=True,
+              color=(255,255,255), name='', style='solid', fade=True,):
     
     if fade:
-        fadedColor = fade_color(color)
+        fadedColor = fade_color(color,3)
     else:
         fadedColor = color
     
     period = orb.get_period()
+    if fullPeriod and (endTime is None):
+        endTime = startTime + period
     
     # start and end mean anomalies
     mStart = orb.get_mean_anomaly(startTime)
@@ -631,8 +633,12 @@ def add_ejection_angle(figure, transfer, r = None):
             )
         )
 
-def add_prograde_trace(figure, transfer, body,
-                       startTime, endTime, numPts = 201):
+def add_prograde_trace(figure, body, t, interval=None, numPts = 201):
+    
+    if interval is None:
+        interval = body.orb.get_period()/8
+    startTime = t - interval
+    endTime = t + interval
     
     color = body.color
     times = np.linspace(startTime, endTime, numPts)
@@ -672,7 +678,60 @@ def add_reference_line(figure, lim, style='dash'):
         showlegend = False,
         ))
 
-def set_trajectory_plot_layout(fig, lim, cameraDist):
+def plot_system(fig, centralBody, t, dateFormat, displays):
+    
+    # add all orbits
+    if ('orbits' in displays):
+        
+        if 'apses' in displays:
+            apses = True
+        else:
+            apses = False
+        if 'nodes' in displays:
+            nodes = True
+        else:
+            nodes = False
+        
+        # add orbits for all satellites around the primary body
+        for bd in centralBody.satellites:
+            add_orbit(fig, bd.orb, t, None, 201, dateFormat,                \
+                      apses = apses, nodes = nodes, color = bd.color,       \
+                      name = bd.name);
+    
+    # add the primary body at the origin
+    add_primary(fig, centralBody, False)
+    if '3dSurfs' in displays:
+        add_primary(fig, centralBody, True)
+    
+    # add trace for primary body's position centered at the specified time
+    if not (centralBody == centralBody.orb.prim):
+        add_prograde_trace(fig, centralBody, t);
+    
+    # finalize axis limit value
+    if centralBody.soi is None:
+        furthestSatellite = centralBody.satellites[-1]
+        lim = 1.25 * furthestSatellite.orb.a * (1 + furthestSatellite.orb.ecc)
+    else:
+        lim = centralBody.soi
+    
+    # add reference direction line
+    if 'ref' in displays:
+        add_reference_line(fig, lim)
+    
+    # add body, SoI positions at specified time
+    for bd in centralBody.satellites:
+        add_body(fig, bd, t, False)
+        if ('3dSurfs' in displays):
+            add_body(fig, bd, t, True)
+        if ('SoIs' in displays):
+            add_soi(fig, bd, t)
+    
+    return lim
+
+def set_trajectory_plot_layout(fig, lim, cameraDist=None, uirevision=None):
+    
+    if cameraDist is None:
+        cameraDist = lim/8
     
     fig.update_layout(
         margin=dict(l=0, r=0, t=15, b=30),
@@ -704,6 +763,7 @@ def set_trajectory_plot_layout(fig, lim, cameraDist):
                 eye = dict( x=cameraDist,
                             y=cameraDist,
                             z=cameraDist)
-                )
+                ),
+            uirevision = uirevision
             )
         )

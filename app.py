@@ -544,6 +544,8 @@ app.layout = html.Div(className='row', children=[
              children=jsonpickle.encode(kerbol_system)),
     ])
 
+#%% callbacks
+
 @app.callback(
     Output('dateFormat-div', 'children'),
     [Input('dateFormat-radio', 'value')]
@@ -1246,6 +1248,11 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
     
+    # plot system at slider time
+    lim = plot_system(fig, chosenTransfer.transferOrbit.prim, sliderTime,   \
+                dateFormat, displays)
+    
+    # add the transfer orbit(s)
     burnTime = chosenTransfer.get_departure_burn_time()
     startTime = chosenTransfer.startTime
     endTime = chosenTransfer.startTime + chosenTransfer.flightTime
@@ -1255,7 +1262,6 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
     else:
         pcTime = endTime
     
-    # add all orbits
     if ('orbits' in displays):
         
         if 'apses' in displays:
@@ -1307,46 +1313,16 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
                                        chosenTransfer.transferOrbitPC,      \
                                        dateFormat, scale = 1/4);
                     else:
-                        add_burn_arrow(fig, chosenTransfer.insertionDV,
-                                       endTime, chosenTransfer.transferOrbit,\
+                        add_burn_arrow(fig, chosenTransfer.insertionDV,     \
+                                       endTime,chosenTransfer.transferOrbit,\
                                        dateFormat, scale = 1/4);
-        
-        # add orbits for all satellites around the primary body
-        for bd in chosenTransfer.transferOrbit.prim.satellites:
-            add_orbit(fig, bd.orb, burnTime, endTime, 201, dateFormat,      \
-                      apses = apses, nodes = nodes, color = bd.color,       \
-                      name = bd.name);
-    
-    # add the primary body at the origin
-    add_primary(fig, chosenTransfer.transferOrbit.prim, False)
-    if '3dSurfs' in displays:
-        add_primary(fig, chosenTransfer.transferOrbit.prim, True)
-    
-    # finalize axis limit value
-    if chosenTransfer.transferOrbit.prim.soi is None:
-        furthestSatellite = chosenTransfer.transferOrbit.prim.satellites[-1]
-        lim = 1.25 * furthestSatellite.orb.a * (1 + furthestSatellite.orb.ecc)
-    else:
-        lim = chosenTransfer.transferOrbit.prim.soi
     
     # add transfer phase angle illustration
     if 'angles' in displays:
         add_transfer_phase_angle(fig, chosenTransfer,                       \
                                  1.5*chosenTransfer.transferOrbit.a)
     
-    # add reference direction line
-    if 'ref' in displays:
-        add_reference_line(fig, lim)
-    
-    # Second to last, add body, SoI positions at slider time
-    for bd in chosenTransfer.transferOrbit.prim.satellites:
-        add_body(fig, bd, sliderTime, False)
-        if ('3dSurfs' in displays):
-            add_body(fig, bd, sliderTime, True)
-        if ('SoIs' in displays):
-            add_soi(fig, bd, sliderTime)
-    
-    # Lastly, add marker for vessel position at slider time
+    # add marker for vessel position at slider time
     if (not chosenTransfer.planeChange) or                                  \
        (sliderTime < chosenTransfer.startTime + chosenTransfer.planeChangeDT):
            vessel = Body('Vessel',0,0,0,chosenTransfer.transferOrbit)
@@ -1355,9 +1331,12 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
     add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'diamond')
     
     # update the plot layout with blank axes, dark grey background, etc
+    uirevision = str(chosenTransfer.transferOrbit.a)
     set_trajectory_plot_layout(fig, lim,                                    \
-                               1.5*chosenTransfer.transferOrbit.a/lim)
+                               1.5*chosenTransfer.transferOrbit.a/lim,      \
+                               uirevision);
     
+    # create downloadable HTML file of plot
     filename = 'TransferPlot.html'
     path = os.path.join(DOWNLOAD_DIRECTORY, filename)
     location = "/download/{}".format(urlquote(filename))
@@ -1379,18 +1358,20 @@ def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
     if chosenTransfer is None:
-        # return fig
         return fig, dict(display = 'none'), ""
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     if chosenTransfer.ejectionTrajectory is None:
-        # return fig
         return fig, dict(display = 'none'), ""
     
+    # plot system at slider time
+    lim = plot_system(fig, chosenTransfer.startOrbit.prim, sliderTime,      \
+                dateFormat, displays)
+    
+    # plot start and ejection orbits
     escTime = chosenTransfer.startTime
     burnTime = chosenTransfer.get_departure_burn_time()
     
-    # add all orbits
     if ('orbits' in displays):
         
         if 'apses' in displays:
@@ -1415,50 +1396,21 @@ def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
                   burnTime + chosenTransfer.startOrbit.get_period()/2,      \
                   201, dateFormat, apses = apses, nodes = nodes,            \
                   name = 'Starting Orbit', style = 'dot', fade = False);
-        
-        # add orbits of satellite bodies around the primary body
-        for bd in chosenTransfer.ejectionTrajectory.prim.satellites:
-            add_orbit(fig, bd.orb, burnTime, escTime, 201, dateFormat,      \
-                      apses = apses, nodes = nodes, color = bd.color,       \
-                      name = bd.name);
-                
-        # add trace for primary body's position centered at the burn time
-        add_prograde_trace(fig, chosenTransfer,                             \
-                           chosenTransfer.startOrbit.prim,                  \
-                           burnTime - chosenTransfer.ejectionDT,            \
-                           burnTime + chosenTransfer.ejectionDT, 201);
-    
-    # finalize value for axis limits
-    lim = chosenTransfer.ejectionTrajectory.prim.soi
     
     # add ejection burn angle-from-prograde illustration
     if 'angles' in displays:
         add_ejection_angle(fig, chosenTransfer)
     
-    # add primary body at the origin
-    add_primary(fig, chosenTransfer.ejectionTrajectory.prim, False)
-    if '3dSurfs' in displays:
-        add_primary(fig, chosenTransfer.ejectionTrajectory.prim, True)
-    
-    # add reference line
-    if 'ref' in displays:
-        add_reference_line(fig, lim)
-    
-    # Second to last, add body, SoI positions at slider time
-    for bd in chosenTransfer.ejectionTrajectory.prim.satellites:
-        add_body(fig, bd, sliderTime, False)
-        if '3dSurfs' in displays:
-            add_body(fig, bd, sliderTime, True)
-        if 'SoIs' in displays:
-            add_soi(fig, bd, sliderTime)
-    
-    # Lastly, add marker for vessel position at slider time
+    # add marker for vessel position at slider time
     vessel = Body('Vessel',0,0,0,chosenTransfer.ejectionTrajectory)
     add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'diamond')
     
     # update the plot layout with blank axes, dark grey background, etc
-    set_trajectory_plot_layout(fig, lim, 3*chosenTransfer.startOrbit.a/lim)
+    uirevision = str(chosenTransfer.transferOrbit.a)
+    set_trajectory_plot_layout(fig, lim, 3*chosenTransfer.startOrbit.a/lim, \
+                               uirevision)
     
+    # create downloadable HTML file of plot
     filename = 'EjectionPlot.html'
     path = os.path.join(DOWNLOAD_DIRECTORY, filename)
     location = "/download/{}".format(urlquote(filename))
@@ -1481,14 +1433,17 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
     if chosenTransfer is None:
-        # return fig
         return fig, dict(display = 'none'), ""
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     if chosenTransfer.insertionTrajectory is None:
-        # return fig
         return fig, dict(display = 'none'), ""
     
+    # plot system at slider time
+    lim = plot_system(fig, chosenTransfer.endOrbit.prim, sliderTime,        \
+                dateFormat, displays)
+    
+    # plot end and insertion orbits
     encTime = chosenTransfer.startTime + chosenTransfer.flightTime
     burnTime = chosenTransfer.get_arrival_burn_time()
     if chosenTransfer.ignoreInsertion:
@@ -1496,7 +1451,6 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
     else:
         endTime = burnTime
     
-    # add all orbits
     if ('orbits' in displays):
         
         if 'apses' in displays:
@@ -1523,45 +1477,17 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
             if 'arrows' in displays:
                 add_burn_arrow(fig, chosenTransfer.insertionDV, burnTime,   \
                            chosenTransfer.insertionTrajectory, dateFormat);
-        
-        # add bodies/orbits of satellite bodies around the primary body
-        for bd in chosenTransfer.insertionTrajectory.prim.satellites:
-            add_orbit(fig, bd.orb, encTime, endTime, 201,                   \
-                      dateFormat, apses = apses, nodes = nodes,             \
-                      color = bd.color, name = bd.name);
-        
-        # add trace for primary body's position centered at the burn time
-        add_prograde_trace(fig, chosenTransfer, chosenTransfer.endOrbit.prim,\
-                           burnTime - chosenTransfer.insertionDT,           \
-                           burnTime + chosenTransfer.insertionDT, 201);
-        
-    # finalize value for axis limits
-    lim = chosenTransfer.insertionTrajectory.prim.soi
     
-    # add reference line
-    if 'ref' in displays:
-        add_reference_line(fig, lim)
-    
-    # add primary body at the origin
-    add_primary(fig, chosenTransfer.insertionTrajectory.prim, False)
-    if '3dSurfs' in displays:
-        add_primary(fig, chosenTransfer.insertionTrajectory.prim, True)
-    
-    # Second to last, add body, SoI positions at slider time
-    for bd in chosenTransfer.insertionTrajectory.prim.satellites:
-        add_body(fig, bd, sliderTime, False)
-        if '3dSurfs' in displays:
-            add_body(fig, bd, sliderTime, True)
-        if 'SoIs' in displays:
-            add_soi(fig, bd, sliderTime)
-    
-    # Lastly, add marker for vessel position at slider time
+    # add marker for vessel position at slider time
     vessel = Body('Vessel',0,0,0,chosenTransfer.insertionTrajectory)
     add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'diamond')
     
     # update the plot layout with blank axes, dark grey background, etc
-    set_trajectory_plot_layout(fig, lim, 3*chosenTransfer.endOrbit.a/lim)
+    uirevision = str(chosenTransfer.transferOrbit.a)
+    set_trajectory_plot_layout(fig, lim, 3*chosenTransfer.endOrbit.a/lim,   \
+                               uirevision)
     
+    # create downloadable HTML file of plot
     filename = 'InsertionPlot.html'
     path = os.path.join(DOWNLOAD_DIRECTORY, filename)
     location = "/download/{}".format(urlquote(filename))
@@ -1569,6 +1495,8 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
     fig.write_html(path)
     
     return fig, dict(display = 'block'), location
+
+#%% run app
 
 if __name__ == '__main__':
     app.run_server(debug=False)
