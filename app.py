@@ -1543,4 +1543,4 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
 #%% run app
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False)
