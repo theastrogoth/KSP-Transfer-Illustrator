@@ -141,10 +141,9 @@ class Orbit:
                 nu = math.acos(math.copysign(1, np.dot(r,eccVec)))
         else:
             try:
-                nu = 2*math.pi -                                            \
-                    math.acos(np.dot(r,eccVec) / (norm(r)*norm(eccVec)))
+                nu = -math.acos(np.dot(r,eccVec) / (norm(r)*norm(eccVec)))
             except ValueError:
-                nu = math.acos(math.copysign(1, np.dot(r,eccVec)))
+                nu = -math.acos(math.copysign(1, np.dot(r,eccVec)))
         
         # Calculate the mean anomaly when t=0.
         # Parabolic case
@@ -176,11 +175,11 @@ class Orbit:
             try:
                 hypAnom = math.acosh((ecc+math.cos(nu)) /                   \
                                      (1+ecc*math.cos(nu)))
+                if (nu > math.pi) or (nu < 0):
+                    hypAnom = -hypAnom
+            
             except ValueError:
-                hypAnom = 2*math.atanh(math.sqrt((ecc-1)/(ecc+1))           \
-                                       * math.tan(nu/2));
-            if nu < 0:
-                hypAnom = -hypAnom
+                hypAnom = 0
             
             # Get mean anomaly at time t via Kepler's equation
             meanAnom = ecc * math.sinh(hypAnom) - hypAnom
@@ -367,7 +366,7 @@ class Orbit:
             mean anomaly (radians)
         """
         
-        if t == 0:
+        if t == self.epoch:
             meanAnom = self.mo
         else:
             meanAnom = self.mo + (t-self.epoch) / (self.get_period()/(2*math.pi))
@@ -466,12 +465,10 @@ class Orbit:
             try:
                 hypAnom = math.acosh((self.ecc+math.cos(trueAnom)) /        \
                                      (1+self.ecc*math.cos(trueAnom)));
+                if (trueAnom < 0) or (trueAnom > math.pi):
+                    hypAnom = -hypAnom
             except ValueError:
-                hypAnom = 2*math.atanh(math.sqrt((self.ecc-1)/(self.ecc+1)) \
-                                       * math.tan(trueAnom/2));
-                    
-            if trueAnom < 0:
-                hypAnom = -hypAnom
+                hypAnom = 0
             
             # Calculate mean anomaly via Keplers equation
             meanAnom = self.ecc*math.sinh(hypAnom) - hypAnom
@@ -692,7 +689,7 @@ class Orbit:
         return self.map_angle(thetaVecPlane - thetaRPlane)
     
     
-    def propogate(self, t, system=None, exclude=None):
+    def propagate(self, t, system=None, exclude=None):
         """Progates the orbit until an SOI change up to a full period.
         
         Args:
@@ -714,14 +711,20 @@ class Orbit:
                 system.remove(body)
         
         if self.ecc > 1:
+            if soi is None:
+                maxDist = self.prim.satellites[-1].orb.a *                  \
+                          (1+self.prim.satellites[-1].orb.ecc) +            \
+                          self.prim.satellites[-1].soi;
+            else:
+                maxDist = soi
             # true anomaly at escape
             try:
                 thetaEscape = math.acos(1/self.ecc *                        \
-                                        (self.a*(1-self.ecc**2)/soi - 1))
+                                        (self.a*(1-self.ecc**2)/maxDist - 1))
             except ValueError:
                 thetaEscape = math.acos(
                     math.copysign(1, 1/self.ecc *                           \
-                                  (self.a*(1-self.ecc**2)/soi - 1)))
+                                  (self.a*(1-self.ecc**2)/maxDist - 1)))
             maxTime = self.get_time(thetaEscape)
         else:
             if soi is None:
@@ -762,16 +765,26 @@ class Orbit:
             relPos = orbPos - bodyPos
             relVel = orbVel - bodyVel
             # err = distance(encTime, self, encBody.orb, encBody.soi)
-            return Orbit.from_state_vector(relPos, relVel, encTime, encBody) #, err
+            return Orbit.from_state_vector(relPos, relVel, encTime, encBody), encTime
         elif self.ecc > 1 and not (soi is None):
             orbPos, orbVel = self.get_state_vector(maxTime)
             bodyPos, bodyVel = self.prim.orb.get_state_vector(maxTime)
             relPos = orbPos + bodyPos
             relVel = orbVel + bodyVel
             # err = norm(orbPos) - soi
-            return Orbit.from_state_vector(relPos, relVel, maxTime, self.prim.orb.prim) #, err
+            return Orbit.from_state_vector(relPos, relVel, maxTime, self.prim.orb.prim), maxTime
+        elif not (soi is None):
+            if self.a*(1+self.ecc)>soi:
+                orbPos, orbVel = self.get_state_vector(maxTime)
+                bodyPos, bodyVel = self.prim.orb.get_state_vector(maxTime)
+                relPos = orbPos + bodyPos
+                relVel = orbVel + bodyVel
+                # err = norm(orbPos) - soi
+                return Orbit.from_state_vector(relPos, relVel, maxTime, self.prim.orb.prim), maxTime
+            else:
+                return None, None
         else:
-            return None #, None
+            return None, None
     
     def __str__(self):
         string = '  Semi-major axis: ' + "{:.2f}".format(self.a) + ' m\n' + \

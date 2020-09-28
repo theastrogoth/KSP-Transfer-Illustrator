@@ -87,62 +87,6 @@ class Transfer:
         # self.genetic_refine()
     
     
-    # @staticmethod
-    # def solve_lambert_izzo(startOrbit, endOrbit, startTime, flightTime,
-    #                   planeChange = False, startPos = None, endPos = None,
-    #                   tol = 1E-14, maxIt = 20):
-    #     """Solves the Lambert problem to obtain a trajectory to the target.
-        
-    #     Args:
-    #         startOrbit (Orbit): orbit prior to departure
-    #         endOrbit (Orbit): orbit following arrival
-    #         startTime (float): time at the beginning of transfer (s)
-    #         flightTime (float): duration of transfer trajectory (s)
-    #         planeChange (bool): if true, a mid-course plane change occurs
-    #         startPos (vector): if provided, fixes start location at the
-    #             given position
-    #         endPos (vector): : if provided, fixes target location at the
-    #             given position
-    #         tol (float): the maximum tolerance for iteration termination
-    #         maxIt (int): the maximum number of iterations before breaking
-        
-    #     Returns:
-    #         transferOrbit (Orbit): trajectory before plane change
-    #         transferOrbitPC (Orbit): trajectory after plane change
-    #         planeChangeDV (array): plane change burn vector (m/s)
-    #         planeChangeDT (float): time between start and plane change (s)
-    #     """
-        
-    #     # Set gravitational parameter for transfer orbit
-    #     mu = startOrbit.prim.mu
-        
-    #     # Get start position
-    #     if startPos is None:
-    #         rStart = startOrbit.get_state_vector(startTime)[0]
-    #     else:
-    #         rStart = startPos
-        
-    #     # Adjust end position based on inputs
-    #     if endPos is None:
-    #         rEnd = endOrbit.get_state_vector(startTime + flightTime)[0]
-    #     else:
-    #         rEnd = endPos
-    #     if planeChange:
-    #         # Rotate the target orbit to be coplanar with the starting one
-    #         rEnd = startOrbit.from_primary_to_orbit_bases(rEnd)
-    #         rEnd = np.array([rEnd[0],rEnd[1],0]) /                          \
-    #             norm(np.array([rEnd[0],rEnd[1]])) * norm(rEnd);
-    #         rEnd = startOrbit.from_orbit_to_primary_bases(rEnd)
-        
-    #     # Code adapted from Oldenhuis' Lambert Solver, Izzo's method
-    #     # non-dimensional units
-    #     r1 = norm(rStart)
-    #     r1vec = rStart/r1;
-    #     V = math.sqrt(mu/r1);
-    #     r2vec = rEnd/r1;
-    #     T = r1/V;                  
-    
-    
     @staticmethod
     def solve_lambert(startOrbit, endOrbit, startTime, flightTime,
                       planeChange = False, startPos = None, endPos = None,

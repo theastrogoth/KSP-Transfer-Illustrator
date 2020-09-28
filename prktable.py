@@ -38,7 +38,7 @@ class PorkchopTable:
                  cheapStartOrb = False, cheapEndOrb = True,
                  minStartTime = 0, maxStartTime = None, 
                  minFlightTime = None, maxFlightTime = None,
-                 startTimeSize = 101, flightTimeSize = 101):
+                 startTimeSize = 25, flightTimeSize = 25):
         
         self.startOrbit = startOrbit
         self.endOrbit = endOrbit

@@ -323,18 +323,27 @@ def add_orbit(figure, orb, startTime, endTime=None, numPts=201,
     if apses:
         add_apses(figure, orb)
 
-def add_apses(figure, orb, size = 4, color = (255,0,0)):
+def add_apses(figure, orb, size = 4, color = (0,0,255)):
     
-    if (orb.ecc > 1) or (orb.ecc == 0):
+    if orb.ecc == 0:
         return
     
-    apoPos  = orb.get_state_vector(orb.get_time(math.pi))[0]
     periPos = orb.get_state_vector(orb.get_time(0))[0]
     
+    if orb.ecc < 1:
+        apoPos  = orb.get_state_vector(orb.get_time(math.pi))[0]
+        x = [apoPos[0],periPos[0]]
+        y = [apoPos[1],periPos[1]]
+        z = [apoPos[2],periPos[2]]
+    else:
+        x = [periPos[0]]
+        y = [periPos[1]]
+        z = [periPos[2]]
+    
     figure.add_trace(go.Scatter3d(
-                                  x = [apoPos[0],periPos[0]],
-                                  y = [apoPos[1],periPos[1]],
-                                  z = [apoPos[2],periPos[2]],
+                                  x = x,
+                                  y = y,
+                                  z = z,
                                   mode = "markers",
                                   marker = dict(
                                       color = 'rgb'+str(color),
@@ -344,25 +353,33 @@ def add_apses(figure, orb, size = 4, color = (255,0,0)):
                                   hoverinfo = 'skip',
                                   ))
 
-def add_nodes(figure, orb, size = 3, color = (0,255,0)):
+def add_nodes(figure, orb, size = 4, color = (0,255,0)):
     
     if (orb.inc == 0) or (orb.ecc > 1):
         return
     
     ascTrueAnom  = -orb.argp
-    descTrueAnom = ascTrueAnom + math.pi
-    
     ascPos  = orb.get_state_vector(orb.get_time(ascTrueAnom))[0]
+    
+    # if orb.ecc < 1:
+    descTrueAnom = ascTrueAnom + math.pi
     descPos = orb.get_state_vector(orb.get_time(descTrueAnom))[0]
+    x = [ascPos[0],descPos[0]]
+    y = [ascPos[1],descPos[1]]
+    z = [ascPos[2],descPos[2]]
+    # else:
+    #     x = [ascPos[0]]
+    #     y = [ascPos[1]]
+    #     z = [ascPos[2]]
     
     figure.add_trace(go.Scatter3d(
-                                  x = [ascPos[0],descPos[0]],
-                                  y = [ascPos[1],descPos[1]],
-                                  z = [ascPos[2],descPos[2]],
+                                  x = x,
+                                  y = y,
+                                  z = z,
                                   mode = "markers",
                                   marker = dict(
                                       color = 'rgb'+str(color),
-                                      symbol = 'x',
+                                      symbol = 'diamond',
                                       size = size),
                                   showlegend = False,
                                   hoverinfo = 'skip',
@@ -488,6 +505,19 @@ def add_burn_arrow(figure, burnDV, burnTime, startOrbit, dateFormat = None,
         mode = "lines",
         line = dict(
             color = 'rgb'+str(color)),
+        hoverinfo = 'skip',
+        showlegend = False,
+        ))
+    figure.add_trace(go.Scatter3d(
+        x = [burnPos[0]], 
+        y = [burnPos[1]], 
+        z = [burnPos[2]],
+        mode = "markers",
+        marker = dict(
+            color = 'rgb'+str(color),
+            symbol = 'circle-open',
+            size = 5
+            ),
         hoverinfo = 'skip',
         showlegend = False,
         ))
@@ -728,10 +758,12 @@ def plot_system(fig, centralBody, t, dateFormat, displays):
     
     return lim
 
-def set_trajectory_plot_layout(fig, lim, cameraDist=None, uirevision=None):
+def set_trajectory_plot_layout(fig, lim, cameraDist=None, uirev=None):
     
     if cameraDist is None:
-        cameraDist = lim/8
+        cameraDist = 0.25
+    if uirev is None:
+        uirev = 'test'
     
     fig.update_layout(
         margin=dict(l=0, r=0, t=15, b=30),
@@ -764,6 +796,6 @@ def set_trajectory_plot_layout(fig, lim, cameraDist=None, uirevision=None):
                             y=cameraDist,
                             z=cameraDist)
                 ),
-            uirevision = uirevision
+            uirevision = uirev
             )
         )

@@ -1328,13 +1328,13 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
            vessel = Body('Vessel',0,0,0,chosenTransfer.transferOrbit)
     else:
            vessel = Body('Vessel',0,0,0,chosenTransfer.transferOrbitPC)
-    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'diamond')
+    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'square')
     
     # update the plot layout with blank axes, dark grey background, etc
-    uirevision = str(chosenTransfer.transferOrbit.a)
+    uirev = chosenTransfer.transferOrbit.prim.name
     set_trajectory_plot_layout(fig, lim,                                    \
                                1.5*chosenTransfer.transferOrbit.a/lim,      \
-                               uirevision);
+                               uirev);
     
     # create downloadable HTML file of plot
     filename = 'TransferPlot.html'
@@ -1343,7 +1343,7 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
     
     fig.write_html(path)
     
-    return fig, location
+    return {'data':fig.data,'layout':fig.layout}, location
 
 @app.callback(
     [Output('ejection-graph', 'figure'),
@@ -1403,12 +1403,12 @@ def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
     
     # add marker for vessel position at slider time
     vessel = Body('Vessel',0,0,0,chosenTransfer.ejectionTrajectory)
-    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'diamond')
+    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'square')
     
     # update the plot layout with blank axes, dark grey background, etc
-    uirevision = str(chosenTransfer.transferOrbit.a)
+    uirev = chosenTransfer.startOrbit.prim.name
     set_trajectory_plot_layout(fig, lim, 3*chosenTransfer.startOrbit.a/lim, \
-                               uirevision)
+                               uirev)
     
     # create downloadable HTML file of plot
     filename = 'EjectionPlot.html'
@@ -1417,7 +1417,8 @@ def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
     
     fig.write_html(path)
     
-    return fig, dict(display = 'block'), location
+    return {'data':fig.data,'layout':fig.layout}, dict(display = 'block'),  \
+           location
 
 @app.callback(
     [Output('insertion-graph', 'figure'),
@@ -1480,12 +1481,12 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
     
     # add marker for vessel position at slider time
     vessel = Body('Vessel',0,0,0,chosenTransfer.insertionTrajectory)
-    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'diamond')
+    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'square')
     
     # update the plot layout with blank axes, dark grey background, etc
-    uirevision = str(chosenTransfer.transferOrbit.a)
+    uirev = chosenTransfer.endOrbit.prim.name
     set_trajectory_plot_layout(fig, lim, 3*chosenTransfer.endOrbit.a/lim,   \
-                               uirevision)
+                               uirev)
     
     # create downloadable HTML file of plot
     filename = 'InsertionPlot.html'
@@ -1494,7 +1495,8 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
     
     fig.write_html(path)
     
-    return fig, dict(display = 'block'), location
+    return {'data':fig.data,'layout':fig.layout}, dict(display = 'block'),  \
+           location
 
 #%% run app
 
