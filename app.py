@@ -375,6 +375,11 @@ app.layout = html.Div(className='row', children=[
                                   type='number',
                                   value = 1,
                                   min = 0),
+                        html.Label('Day Length Multiplier'),
+                        dcc.Input(id='systemDayScale-input',
+                                  type='number',
+                                  value = 1,
+                                  min = 0),
                         ])
                     )
             ]),
@@ -559,22 +564,31 @@ app.layout = html.Div(className='row', children=[
 #%% callbacks
 
 @app.callback(
-    Output('dateFormat-div', 'children'),
-    [Input('dateFormat-radio', 'value')]
+     Output('dateFormat-div', 'children'),
+    [Input('dateFormat-radio', 'value'),
+     Input('systemResize-input', 'value'),
+     Input('systemRescale-input','value'),
+     Input('systemDayScale-input','value')]
     )
-def set_date_format(selected_format):
+def set_date_format(selected_format, resizeFactor, rescaleFactor, dayFactor):
     formats = dict(Kerbin = dict(day=6, year=426),
-                   Earth = dict(day=24, year = 365))
-    return formats[selected_format]
+                   Earth = dict(day=24, year=365))
+    
+    dateFormat = formats[selected_format]
+    day = dateFormat['day']
+    year = dateFormat['year']
+    
+    day = day * dayFactor
+    
+    aScale = rescaleFactor
+    muScale = resizeFactor**2
+    year = year * math.sqrt(aScale**3/muScale) / dayFactor
+    
+    year = round(year)
+    day = round(day)
+    
+    return dict(day=day, year=year)
 
-@app.callback(
-    [Output('system-div', 'children'),
-     Output('startingBody-dropdown', 'value')],
-    [Input('system-radio','value'),
-     Input('systemResize-input','value'),
-     Input('systemRescale-input','value')],
-    [State('allSystems-div', 'children')]
-    )
 def set_system(system_name, resizeFactor, rescaleFactor, all_systems):
     if system_name == 'Kerbol':
         system = jsonpickle.decode(all_systems[0])
