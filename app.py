@@ -562,7 +562,6 @@ app.layout = html.Div(className='row', children=[
     ])
 
 #%% callbacks
-
 @app.callback(
      Output('dateFormat-div', 'children'),
     [Input('dateFormat-radio', 'value'),
@@ -589,6 +588,14 @@ def set_date_format(selected_format, resizeFactor, rescaleFactor, dayFactor):
     
     return dict(day=day, year=year)
 
+@app.callback(
+    [Output('system-div', 'children'),
+     Output('startingBody-dropdown', 'value')],
+    [Input('system-radio','value'),
+     Input('systemResize-input','value'),
+     Input('systemRescale-input','value')],
+    [State('allSystems-div', 'children')]
+    )
 def set_system(system_name, resizeFactor, rescaleFactor, all_systems):
     if system_name == 'Kerbol':
         system = jsonpickle.decode(all_systems[0])
@@ -912,7 +919,7 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat, matchMo):
     # set slider attributes for transfer plot
     trMinTime = transfer.get_departure_burn_time()
     trMaxTime = transfer.startTime + transfer.flightTime
-    trStep = 1, 
+    trStep = 1
     trMarks = {
         trMinTime: 'Departure',
         trMaxTime: 'Target Encounter'
@@ -1536,4 +1543,4 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
 #%% run app
 
 if __name__ == '__main__':
-    app.run_server(debug=False)
+    app.run_server(debug=True)
