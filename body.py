@@ -43,4 +43,17 @@ class Body:
             if not(self in self.orb.prim.satellites):
                 self.orb.prim.satellites.append(self)
     
+    def rescale(self, factor):
+        if not self.orb.a is None:
+            self.orb.a = self.orb.a*factor
+            self.soi = self.orb.a * (self.mu/self.orb.prim.mu)**(2/5)
     
+    def resize(self, factor):
+        surfGrav = self.mu/self.eqr**2
+        
+        self.eqr = self.eqr*factor
+        self.mu = surfGrav * self.eqr**2
+        
+        if not self.orb.a is None:
+            self.soi = self.orb.a * (self.mu/self.orb.prim.mu)**(2/5)
+

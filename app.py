@@ -363,6 +363,18 @@ app.layout = html.Div(className='row', children=[
                         dcc.Input(id = 'endepoch-input',  
                                   type='number',
                                   value = 0),
+                        
+                        html.H3('System Options'),
+                        html.Label('System Resize Factor'),
+                        dcc.Input(id = 'systemResize-input',  
+                                  type='number',
+                                  value = 1,
+                                  min = 0),
+                        html.Label('System Rescale Factor'),
+                        dcc.Input(id = 'systemRescale-input',
+                                  type='number',
+                                  value = 1,
+                                  min = 0),
                         ])
                     )
             ]),
@@ -557,18 +569,27 @@ def set_date_format(selected_format):
 
 @app.callback(
     [Output('system-div', 'children'),
-     Output('startingBody-dropdown', 'value'),
-     Output('endingBody-dropdown', 'value')],
-    [Input('system-radio','value')],
+     Output('startingBody-dropdown', 'value')],
+    [Input('system-radio','value'),
+     Input('systemResize-input','value'),
+     Input('systemRescale-input','value')],
     [State('allSystems-div', 'children')]
     )
-def set_system(system_name, all_systems):
+def set_system(system_name, resizeFactor, rescaleFactor, all_systems):
     if system_name == 'Kerbol':
-        return all_systems[0], 'Kerbin', 'Duna'
+        system = jsonpickle.decode(all_systems[0])
+        sBody = 'Kerbin'
     elif system_name == 'Sol':
-        return all_systems[1], 'Earth', 'Mars'
+        system = jsonpickle.decode(all_systems[1])
+        sBody = 'Earth'
     else:
-        return dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, dash.no_update
+    
+    for body in system:
+        body.resize(resizeFactor)
+        body.rescale(rescaleFactor)
+    
+    return jsonpickle.encode(system), sBody
 
 @app.callback(
     Output('startingBody-dropdown', 'options'),
