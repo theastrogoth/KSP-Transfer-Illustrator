@@ -349,7 +349,8 @@ class Orbit:
         """
         
         # manually set pi in attempt to improve accuracy with KSP
-        pi = 3.14159265358979
+        # pi = 3.14159265358979
+        pi = math.pi
         
         if self.period is None:
             self.period = 2*pi * math.sqrt((abs(self.a)**3)/self.prim.mu)
@@ -738,7 +739,7 @@ class Orbit:
                         thetaEscape = math.acos(
                             math.copysign(1, 1/self.ecc *                   \
                                           (self.a*(1-self.ecc**2)/soi - 1)))
-                    maxTime = self.get_time(thetaEscape)
+                    maxTime = self.get_time(thetaEscape, t)
                 else:
                     maxTime = t + self.get_period()
         
@@ -746,9 +747,14 @@ class Orbit:
         intersectTimes = []
         for body in system:
             params = (self, body.orb, 0)
-            res = minimize(fun=distance,x0=[(t+maxTime)/2],                 \
-                           args=params, bounds=[(t, maxTime)],              \
-                           jac='2-point', method='L-BFGS-B');
+            try:
+                res = minimize(fun=distance, x0=[(t+maxTime)/2],            \
+                               args=params, bounds=[(t, maxTime)],          \
+                               jac='2-point', method='L-BFGS-B');
+            except ValueError:
+                res = minimize(fun=distance, x0=[(t+maxTime)/2],            \
+                               args=params, bounds=[(t, maxTime)],          \
+                               jac='2-point', method='L-BFGS-B');
             if res.fun < body.soi:
                 intersects.append(body)
                 intersectTimes.append(res.x[0])
@@ -758,7 +764,13 @@ class Orbit:
             encBody = intersects[-1]
             maxTime = intersectTimes[-1]
             params = (self, encBody.orb, encBody.soi)
-            encTime = brentq(distance, t, maxTime, args=params)
+            try:
+                encTime = brentq(distance, t, maxTime, args=params)
+            except ValueError:
+                try:
+                    encTime = brentq(distance, t, maxTime*0.99, args=params)
+                except ValueError:
+                    encTime = brentq(distance, t, maxTime*1.01, args=params)
             
             orbPos, orbVel = self.get_state_vector(encTime)
             bodyPos, bodyVel = encBody.orb.get_state_vector(encTime)

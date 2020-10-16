@@ -8,6 +8,8 @@ import dash_html_components as html
 from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 from plotutils import *
+from sfsutils import parse_savefile
+from base64 import b64decode
 
 import jsonpickle
 import math
@@ -15,6 +17,7 @@ import numpy as np
 from numpy.linalg import norm
 from orbit import Orbit
 from body import Body
+from vessel import Vessel
 from transfer import Transfer
 from prktable import PorkchopTable
 
@@ -39,6 +42,14 @@ infile.close
 infile = open('sol_system.json','r')
 sol_system = jsonpickle.decode(infile.read())
 infile.close
+
+#%%
+
+def name_options(objectList):
+    nameOptions = []
+    for ob in objectList:
+        nameOptions.append(ob.name) 
+    return [{'label': i, 'value': i} for i in nameOptions]
 
 #%% download functions
 
@@ -143,19 +154,6 @@ app.layout = html.Div(className='row', children=[
                                  These can be copy/pasted from HyperEdit.  
                                    
                                  #### Notes
-                                 
-                                 For all orbit details displayed in the app, 
-                                 the epoch is t=0 seconds.  
-                                   
-                                 The app ignores parking orbits' mean anomaly 
-                                 at epoch when calculating transfers, so you 
-                                 may need to adjust the start time manually to 
-                                 get a transfer where your craft is at the 
-                                 burn position at the right time. Hover over 
-                                 the starting orbit in the 3D plot to check 
-                                 its mean anomaly. For lower altitude parking 
-                                 orbits this difference can usually be 
-                                 ignored.  
                                    
                                  The app attempts to accurately "patch" 
                                  trajectories across SOI changes to get highly
@@ -188,7 +186,7 @@ app.layout = html.Div(className='row', children=[
             dcc.Tab(
                 label='Mission Parameters',
                 value = 'params',
-                children = html.Div([
+                children = [
                     html.H3('Mission Parameters'),
                     html.Div(
                         className='ctrl-name',
@@ -215,12 +213,25 @@ app.layout = html.Div(className='row', children=[
                     html.Label('Starting Body'),
                     dcc.Dropdown(
                         id = 'startingBody-dropdown',
-                        value = 'Kerbin'
+                        value = 'Kerbin',
+                        options = name_options(kerbol_system)
                         ),
                     html.Label('Ending Body'),
                     dcc.Dropdown(
                         id = 'endingBody-dropdown',
-                        value = 'Duna'
+                        value = 'Duna',
+                        options=[
+                            {'label': 'Kerbol', 'value': 'Kerbol'},
+                            {'label': 'Moho', 'value': 'Moho'},
+                            {'label': 'Eve', 'value': 'Eve'},
+                            {'label': 'Kerbin', 'value': 'Kerbin'},
+                            {'label': 'Mun', 'value': 'Mun'},
+                            {'label': 'Minmus', 'value': 'Minmus'},
+                            {'label': 'Duna', 'value': 'Duna'},
+                            {'label': 'Dres', 'value': 'Dres'},
+                            {'label': 'Jool', 'value': 'Jool'},
+                            {'label': 'Eeloo', 'value': 'Eeloo'},
+                            ],
                         ),
                     html.Label('Starting altitude (km)'),
                     dcc.Input(id = 'startPark-input', value=100, 
@@ -275,12 +286,42 @@ app.layout = html.Div(className='row', children=[
                     html.Label('Earliest Departure Day'),
                     dcc.Input(id = 'earlyStartDay-input', value=1, 
                               type='number'),
-                    ])
-                ),
+                    html.H3('Load Orbits from sfs File'),
+                    dcc.Upload(
+                        id='persistenceFile-upload',
+                        children=html.Div([
+                            'Drag and Drop or ',
+                            html.A('Select Files')
+                        ]),
+                        style={
+                            'width': '100%',
+                            'height': '60px',
+                            'lineHeight': '60px',
+                            'borderWidth': '1px',
+                            'borderStyle': 'dashed',
+                            'borderRadius': '5px',
+                            'textAlign': 'center',
+                            'margin': '10px'
+                            },
+                        multiple=False
+                        ),
+                    html.Label('Select orbit to add'),
+                    dcc.Dropdown(
+                        id='persistenceVessels-dropdown',
+                        ),
+                    html.Button(children = 'Add Starting Orbit',
+                                id = 'addStartOrbit-button',
+                                n_clicks = 0
+                        ),
+                    html.Button(children = 'Add Ending Orbit',
+                                id = 'addEndOrbit-button',
+                                n_clicks = 0
+                        ),
+                    ]),
                 dcc.Tab(
                     label='Advanced Settings',
                     value = 'adv', 
-                    children = html.Div(className='six columns', children = [
+                    children = [
                         html.H3('Departure Time and Flight Duration'),
                         html.Label('Earliest Departure Year'),
                         dcc.Input(id = 'earlyStartYear2-input', value=1,
@@ -308,7 +349,7 @@ app.layout = html.Div(className='row', children=[
                         html.Label('Semi-major axis (m)'),
                         dcc.Input(id = 'starta-input',  
                                   type='number',
-                                  value = 0),
+                                  value = 700000),
                         html.Label('Eccentricity'),
                         dcc.Input(id = 'startecc-input',  
                                   type='number',
@@ -338,7 +379,7 @@ app.layout = html.Div(className='row', children=[
                         html.Label('Semi-major axis (m)'),
                         dcc.Input(id = 'enda-input',  
                                   type='number',
-                                  value = 0),
+                                  value = 420000),
                         html.Label('Eccentricity'),
                         dcc.Input(id = 'endecc-input',  
                                   type='number',
@@ -381,7 +422,6 @@ app.layout = html.Div(className='row', children=[
                                   value = 1,
                                   min = 0),
                         ])
-                    )
             ]),
         ]),
     html.Div(className='four columns', children = [
@@ -456,109 +496,114 @@ app.layout = html.Div(className='row', children=[
             ])
         ]),
     html.Div(className='four columns', children = [
+        html.H3('Orbit Plots'),
+        dcc.Markdown('**Display Options**'),
+        dcc.Checklist(
+            id = 'display-checklist',
+            value = ['orbits', '3dSurfs', 'SoIs', 'arrows', 'angles'],
+            options=[
+                {'label': 'Orbits', 'value': 'orbits'},
+                {'label': 'Body Surfaces', 'value': '3dSurfs'},
+                {'label': 'Spheres of Influence', 'value': 'SoIs'},
+                {'label': 'Burn Arrows', 'value': 'arrows'},
+                {'label': 'Prograde/Phase Angles', 'value': 'angles'},
+                {'label': 'Apses', 'value': 'apses'},
+                {'label': 'Nodes', 'value': 'nodes'},
+                {'label': 'Reference Direction', 'value': 'ref'},
+                ],
+            labelStyle={'display': 'inline-block'},
+            ),
         html.Div([
-            html.H3('Orbit Plots'),
-            dcc.Markdown('**Display Options**'),
-            dcc.Checklist(
-                id = 'display-checklist',
-                value = ['orbits', '3dSurfs', 'SoIs', 'arrows', 'angles'],
-                options=[
-                    {'label': 'Orbits', 'value': 'orbits'},
-                    {'label': 'Body Surfaces', 'value': '3dSurfs'},
-                    {'label': 'Spheres of Influence', 'value': 'SoIs'},
-                    {'label': 'Burn Arrows', 'value': 'arrows'},
-                    {'label': 'Prograde/Phase Angles', 'value': 'angles'},
-                    {'label': 'Apses', 'value': 'apses'},
-                    {'label': 'Nodes', 'value': 'nodes'},
-                    {'label': 'Reference Direction', 'value': 'ref'},
-                    ],
-                labelStyle={'display': 'inline-block'},
+        dcc.Loading(id='transfer-loading', type='circle', children=[
+            dcc.Markdown('**Transfer Trajectory**'),
+            dcc.Graph(
+                id='transfer-graph',
+                figure = go.Figure(layout = dict(
+                                    xaxis = dict(visible=False),
+                                    yaxis = dict(visible=False))),
                 ),
-            html.Div([
-            dcc.Loading(id='transfer-loading', type='circle', children=[
-                dcc.Markdown('**Transfer Trajectory**'),
-                dcc.Graph(
-                    id='transfer-graph',
-                    figure = go.Figure(layout = dict(
-                                        xaxis = dict(visible=False),
-                                        yaxis = dict(visible=False))),
-                    ),
-                    ]),
-                dcc.Slider(
-                    id='transfer-slider',
-                    min=0,
-                    max=1,
-                    step=1,
-                    marks = dict(),
-                    value=0,
-                    included=False,
-                    updatemode='mouseup'
-                    ),
-                html.A(children=html.Button('Download'),
-                       id='transferPlot-download',
-                       download="TransferPlot.html", href="",
-                       target="_blank"),
                 ]),
-            html.Div(id='ejection-div', style={'display': 'none'}, children=[
-            dcc.Loading(id='ejection-loading', type='circle', children=[
-                dcc.Markdown('**Ejection Trajectory**'),
-                dcc.Graph(
-                    id='ejection-graph',
-                    figure = go.Figure(layout = dict(
-                                        xaxis = dict(visible=False),
-                                        yaxis = dict(visible=False))),
-                    ),
-                    ]),
-                dcc.Slider(
-                    id='ejection-slider',
-                    min=0,
-                    max=1,
-                    step=1,
-                    marks = dict(),
-                    value=0,
-                    included=False,
-                    updatemode='mouseup'
-                    ),
-                html.A(children=html.Button('Download'),
-                       id='ejectionPlot-download',
-                       download="EjectionPlot.html", href="",
-                       target="_blank"),
+            dcc.Slider(
+                id='transfer-slider',
+                min=0,
+                max=1,
+                step=1,
+                marks = dict(),
+                value=0,
+                included=False,
+                updatemode='mouseup'
+                ),
+            html.A(children=html.Button('Download'),
+                   id='transferPlot-download',
+                   download="TransferPlot.html", href="",
+                   target="_blank"),
+            ]),
+        html.Div(id='ejection-div', style={'display': 'none'}, children=[
+        dcc.Loading(id='ejection-loading', type='circle', children=[
+            dcc.Markdown('**Ejection Trajectory**'),
+            dcc.Graph(
+                id='ejection-graph',
+                figure = go.Figure(layout = dict(
+                                    xaxis = dict(visible=False),
+                                    yaxis = dict(visible=False))),
+                ),
                 ]),
-            html.Div(id='insertion-div', style={'display': 'none'}, children=[
-            dcc.Loading(id='insertion-loading', type='circle', children=[
-                dcc.Markdown('**Insertion Trajectory**'),
-                dcc.Graph(
-                    id='insertion-graph',
-                    figure = go.Figure(layout =dict(
-                                        xaxis = dict(visible=False),
-                                        yaxis = dict(visible=False))),
-                    ),
-                    ]),
-                dcc.Slider(
-                    id='insertion-slider',
-                    min=0,
-                    max=1,
-                    step=1,
-                    marks = dict(),
-                    value=0,
-                    included=False,
-                    updatemode='mouseup'
-                    ),
-                html.A(children=html.Button('Download'),
-                       id='insertionPlot-download',
-                       download="InsertionPlot.html", href="",
-                       target="_blank"),
+            dcc.Slider(
+                id='ejection-slider',
+                min=0,
+                max=1,
+                step=1,
+                marks = dict(),
+                value=0,
+                included=False,
+                updatemode='mouseup'
+                ),
+            html.A(children=html.Button('Download'),
+                   id='ejectionPlot-download',
+                   download="EjectionPlot.html", href="",
+                   target="_blank"),
+            ]),
+        html.Div(id='insertion-div', style={'display': 'none'}, children=[
+        dcc.Loading(id='insertion-loading', type='circle', children=[
+            dcc.Markdown('**Insertion Trajectory**'),
+            dcc.Graph(
+                id='insertion-graph',
+                figure = go.Figure(layout =dict(
+                                    xaxis = dict(visible=False),
+                                    yaxis = dict(visible=False))),
+                ),
                 ]),
+            dcc.Slider(
+                id='insertion-slider',
+                min=0,
+                max=1,
+                step=1,
+                marks = dict(),
+                value=0,
+                included=False,
+                updatemode='mouseup'
+                ),
+            html.A(children=html.Button('Download'),
+                   id='insertionPlot-download',
+                   download="InsertionPlot.html", href="",
+                   target="_blank"),
             ]),
         ]),
     # Hidden Divs to store data
-    html.Div(id='dateFormat-div', style = {'display': 'none'}),
+    html.Div(id='dateFormat-div', style = {'display': 'none'},
+             children = []),
     html.Div(id='allSystems-div', style = {'display': 'none'},
              children=[
                  jsonpickle.encode(kerbol_system),
                  jsonpickle.encode(sol_system)]),
-    html.Div(id='system-div', style={'display': 'none',}, 
+    html.Div(id='system-div', style={'display': 'none'}, 
              children=jsonpickle.encode(kerbol_system)),
+    html.Div(id='persistenceVessels-div', style={'display': 'none'},
+             children = []),
+    html.Div(id='starta-div', style={'display': 'none'},
+             children = [700000]),
+    html.Div(id='enda-div', style={'display': 'none'},
+             children = [420000]),
     ])
 
 #%% callbacks
@@ -589,8 +634,7 @@ def set_date_format(selected_format, resizeFactor, rescaleFactor, dayFactor):
     return dict(day=day, year=year)
 
 @app.callback(
-    [Output('system-div', 'children'),
-     Output('startingBody-dropdown', 'value')],
+     Output('system-div', 'children'),
     [Input('system-radio','value'),
      Input('systemResize-input','value'),
      Input('systemRescale-input','value')],
@@ -599,18 +643,16 @@ def set_date_format(selected_format, resizeFactor, rescaleFactor, dayFactor):
 def set_system(system_name, resizeFactor, rescaleFactor, all_systems):
     if system_name == 'Kerbol':
         system = jsonpickle.decode(all_systems[0])
-        sBody = 'Kerbin'
     elif system_name == 'Sol':
         system = jsonpickle.decode(all_systems[1])
-        sBody = 'Earth'
     else:
-        return dash.no_update, dash.no_update
+        return dash.no_update
     
     for body in system:
         body.resize(resizeFactor)
         body.rescale(rescaleFactor)
     
-    return jsonpickle.encode(system), sBody
+    return jsonpickle.encode(system)
 
 @app.callback(
     Output('startingBody-dropdown', 'options'),
@@ -640,29 +682,99 @@ def set_endBody_options(start_body_name, system_data):
     return [{'label': i, 'value': i} for i in end_bodies]
 
 @app.callback(
-    Output('starta-input', 'value'),
+     Output('starta-input', 'value'),
     [Input('startingBody-dropdown', 'value'),
-     Input('startPark-input', 'value')],
-    [State('system-div', 'children')],
+     Input('startPark-input', 'value'),
+     Input('starta-div','children')],
+    [State('system-div', 'children'),
+     State('starta-input', 'value')],
     )
-def update_start_a(start_body_name, park_alt, system_data):
+def update_start_a_value(start_body_name, park_alt, start_a_div, system_data,
+                         prevVal):
+    
+    ctx = dash.callback_context
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'starta-div':
+        return start_a_div
+    
     system_data_d = jsonpickle.decode(system_data)
     start_body = [x for x in system_data_d if x.name == start_body_name][0]
+    
+    if prevVal == start_body.eqr + 1000*park_alt:
+        return dash.no_update
+    
     return start_body.eqr + 1000*park_alt
 
 @app.callback(
-    Output('enda-input', 'value'),
+     Output('enda-input', 'value'),
     [Input('endingBody-dropdown', 'value'),
-     Input('endPark-input', 'value')],
-    [State('system-div', 'children')],
+     Input('endPark-input', 'value'),
+     Input('enda-div', 'children')],
+    [State('system-div', 'children'),
+     State('enda-input', 'value')],
     )
-def update_end_a(end_body_name, park_alt, system_data):
+def update_end_a_value(end_body_name, park_alt, end_a_div, system_data,
+                       prevVal):
+    
+    ctx = dash.callback_context
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'enda-div':
+        return end_a_div
+    
     system_data_d = jsonpickle.decode(system_data)
     end_body = [x for x in system_data_d if x.name == end_body_name][0]
+    
+    if prevVal == end_body.eqr + 1000*park_alt:
+        return dash.no_update
+    
     return end_body.eqr + 1000*park_alt
 
 @app.callback(
-    Output('earlyStartYear2-input', 'value'),
+     Output('startPark-input', 'value'),
+    [Input('startingBody-dropdown', 'value'),
+     Input('starta-input', 'value'),
+     Input('starta-div','children')],
+    [State('system-div', 'children'),
+     State('starta-input', 'value')],
+    )
+def update_start_altidude(start_body_name, start_a, start_a_div, system_data,
+                         prevVal):
+    
+    system_data_d = jsonpickle.decode(system_data)
+    start_body = [x for x in system_data_d if x.name == start_body_name][0]
+    
+    ctx = dash.callback_context
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'starta-div':
+        return (start_a_div - start_body.eqr)/1000
+    
+    if prevVal == (start_a - start_body.eqr)/1000:
+        return dash.no_update
+    
+    return (start_a - start_body.eqr)/1000
+
+@app.callback(
+     Output('endPark-input', 'value'),
+    [Input('endingBody-dropdown', 'value'),
+     Input('enda-input', 'value'),
+     Input('enda-div','children')],
+    [State('system-div', 'children'),
+     State('enda-input', 'value')],
+    )
+def update_end_altidude(end_body_name, end_a, end_a_div, system_data,
+                         prevVal):
+    
+    system_data_d = jsonpickle.decode(system_data)
+    end_body = [x for x in system_data_d if x.name == end_body_name][0]
+    
+    ctx = dash.callback_context
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'enda-div':
+        return (end_a_div - end_body.eqr)/1000
+    
+    if prevVal == (end_a - end_body.eqr)/1000:
+        return dash.no_update
+    
+    return (end_a - end_body.eqr)/1000
+
+@app.callback(
+     Output('earlyStartYear2-input', 'value'),
     [Input('earlyStartYear-input', 'value')],
     [State('earlyStartYear2-input', 'value')]
     )
@@ -673,7 +785,7 @@ def update_early_start_year2(early_start_year, prev_state):
         return early_start_year
 
 @app.callback(
-    Output('earlyStartYear-input', 'value'),
+     Output('earlyStartYear-input', 'value'),
     [Input('earlyStartYear2-input', 'value')],
     [State('earlyStartYear-input', 'value')],
     )
@@ -684,7 +796,7 @@ def update_early_start_year(early_start_year2, prev_state):
         return early_start_year2
 
 @app.callback(
-    Output('earlyStartDay2-input', 'value'),
+     Output('earlyStartDay2-input', 'value'),
     [Input('earlyStartDay-input', 'value')],
     [State('earlyStartDay2-input', 'value')]
     )
@@ -695,7 +807,7 @@ def update_early_start_day2(early_start_day, prev_state):
         return early_start_day
 
 @app.callback(
-    Output('earlyStartDay-input', 'value'),
+     Output('earlyStartDay-input', 'value'),
     [Input('earlyStartDay2-input', 'value')],
     [State('earlyStartDay-input', 'value')]
     )
@@ -1255,38 +1367,6 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     
-    # ctx = dash.callback_context
-    # trUpdate = 'transfer-div' in ctx.triggered[0]['prop_id'].split('.')
-    # if (not trUpdate) and (len(prevFig['data'])>10):
-    #     numConstantTraces = 11
-    #     numTracesPerBody = 3
-    #     numSatellites = len(chosenTransfer.transferOrbit.prim.satellites)
-        
-    #     prevFig = go.Figure(prevFig)
-        
-    #     for ii, bd in enumerate(chosenTransfer.transferOrbit.prim.satellites):
-    #         pos = bd.orb.get_state_vector(sliderTime)[0]
-    #         for jj in range(numTracesPerBody):
-    #             prevFig.plotly_restyle(                                     \
-    #                 {'x': np.array([pos[0]]),                               \
-    #                  'y': np.array([pos[1]]),                               \
-    #                  'z': np.array([pos[2]])},                              \
-    #                 numConstantTraces + numTracesPerBody*ii + jj)
-        
-    #     if (not chosenTransfer.planeChange) or                              \
-    #     (sliderTime < chosenTransfer.startTime + chosenTransfer.planeChangeDT):
-    #       pos = chosenTransfer.transferOrbit.get_state_vector(sliderTime)[0]
-    #     else:
-    #       pos = chosenTransfer.transferOrbitPC.get_state_vector(sliderTime)[0]
-        
-    #     prevFig.plotly_restyle(                                             \
-    #             {'x': np.array([pos[0]]),                                   \
-    #              'y': np.array([pos[1]]),                                   \
-    #              'z': np.array([pos[2]])},                                  \
-    #             numConstantTraces + numTracesPerBody + numSatellites)
-    
-    #     return prevFig
-    
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
     
@@ -1539,6 +1619,96 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
     
     return {'data':fig.data,'layout':fig.layout}, dict(display = 'block'),  \
            location
+
+@app.callback(
+    [Output('persistenceVessels-div', 'children'),
+     Output('persistenceVessels-dropdown', 'options'),
+     Output('persistenceVessels-dropdown', 'value')],
+    [Input('persistenceFile-upload', 'contents')],
+    [State('system-div', 'children')],
+     prevent_initial_call=True
+      )
+def create_orbits_from_persistence_file(persistenceFile, system):
+    
+    if persistenceFile is None:
+        return dash.no_update, dash.no_update, dash.no_update
+    
+    system = jsonpickle.decode(system)
+    persistenceFile = persistenceFile.split(',')[1]
+    persistenceFile = b64decode(persistenceFile).decode('utf-8')
+    sfsData = parse_savefile(persistenceFile, False)
+    sfsVessels = sfsData['GAME']['FLIGHTSTATE']['VESSEL']
+    vessels = []
+    for sfsVessel in sfsVessels:
+        
+        name = sfsVessel['name']
+        
+        a = float(sfsVessel['ORBIT']['SMA'])
+        ecc = float(sfsVessel['ORBIT']['ECC'])
+        inc = float(sfsVessel['ORBIT']['INC'])
+        argp = float(sfsVessel['ORBIT']['LPE'])
+        lan = float(sfsVessel['ORBIT']['LAN'])
+        mo = float(sfsVessel['ORBIT']['MNA'])
+        epoch = float(sfsVessel['ORBIT']['EPH'])
+        primRef = float(sfsVessel['ORBIT']['REF'])
+        prim = [bd for bd in system if bd.ref == primRef][0]
+        orb = Orbit(a, ecc, inc, argp, lan, mo, epoch, prim)
+        
+        vessels.append(Vessel(name, orb))
+    
+    vesselOptions = name_options(vessels)
+    
+    return jsonpickle.encode(vessels), vesselOptions, vessels[0].name
+
+@app.callback(
+    [Output('startingBody-dropdown','value'),
+     Output('starta-div','children'),
+     Output('startecc-input','value'),
+     Output('startinc-input','value'),
+     Output('startargp-input','value'),
+     Output('startlan-input','value'),
+     Output('startmo-input','value'),
+     Output('startepoch-input','value')],
+    [Input('addStartOrbit-button', 'n_clicks')],
+    [State('persistenceVessels-div','children'),
+     State('persistenceVessels-dropdown','value')]
+    )
+def add_start_orbit(nClicks, persistenceVessels, addVesselName):
+    # don't update on page load
+    if nClicks == 0:
+        return dash.no_update
+    
+    persistenceVessels = jsonpickle.decode(persistenceVessels)
+    vessel = [vs for vs in persistenceVessels if vs.name == addVesselName][0]
+    orb = vessel.orb
+    
+    return orb.prim.name, orb.a, orb.ecc, orb.inc, orb.argp, orb.lan,       \
+           orb.mo, orb.epoch
+
+@app.callback(
+    [Output('endingBody-dropdown','value'),
+     Output('enda-div','children'),
+     Output('endecc-input','value'),
+     Output('endinc-input','value'),
+     Output('endargp-input','value'),
+     Output('endlan-input','value'),
+     Output('endmo-input','value'),
+     Output('endepoch-input','value')],
+    [Input('addEndOrbit-button', 'n_clicks')],
+    [State('persistenceVessels-div','children'),
+     State('persistenceVessels-dropdown','value')]
+    )
+def add_end_orbit(nClicks, persistenceVessels, addVesselName):
+    # don't update on page load
+    if nClicks == 0:
+        return dash.no_update
+    
+    persistenceVessels = jsonpickle.decode(persistenceVessels)
+    vessel = [vs for vs in persistenceVessels if vs.name == addVesselName][0]
+    orb = vessel.orb
+    
+    return orb.prim.name, orb.a, orb.ecc, orb.inc, orb.argp, orb.lan,       \
+           orb.mo, orb.epoch
 
 #%% run app
 

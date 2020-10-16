@@ -492,9 +492,20 @@ def add_soi(figure, bd, time, pos=None):
                                     ))
 
 def add_burn_arrow(figure, burnDV, burnTime, startOrbit, dateFormat = None,
-                       scale=1/2, name = 'Burn', color = (255,0,0)):
+                       scale=1/2, name = 'Burn', color = (255,0,0), 
+                       burnDVisAbsolute = True):
     
     burnPos, preBurnVel = startOrbit.get_state_vector(burnTime)
+    
+    if burnDVisAbsolute:
+        prograde, normal, radial = get_burn_components(burnDV, burnPos, preBurnVel)
+    else:
+        prograde = burnDV[0]
+        normal = burnDV[1]
+        radial = burnDV[2]
+        
+        burnDV =  burn_components_to_absolute(prograde, normal, radial, 
+                                              burnPos, preBurnVel)
     
     arrowLength = abs((1-startOrbit.ecc)*startOrbit.a)*scale
     arrowHeadPos = burnPos + burnDV/norm(burnDV)*arrowLength
@@ -521,8 +532,6 @@ def add_burn_arrow(figure, burnDV, burnTime, startOrbit, dateFormat = None,
         hoverinfo = 'skip',
         showlegend = False,
         ))
-    
-    prograde, normal, radial = get_burn_components(burnDV, burnPos, preBurnVel)
     
     if dateFormat is None:
         dateFormat = dict(day = 6, year = 426)

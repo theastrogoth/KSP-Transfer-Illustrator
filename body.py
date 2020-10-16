@@ -15,10 +15,12 @@ class Body:
     """
     
     def __init__(self, name  = None, eqr = None, mu = None, soi = None, 
-                 orb = None, satellites = None, color = (255,255,255)):
+                 orb = None, ref = None, satellites = None, 
+                 color = (255,255,255)):
         self.name = name
         self.eqr = eqr
         self.mu = mu
+        self.ref = ref
         self.color = color
         
         if orb is None:
