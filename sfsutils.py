@@ -1,5 +1,6 @@
 """Parser for KSP save file"""
 from collections import OrderedDict
+import re
 
 def parse_savefile(sfs, sfs_is_path=True):
     """Parses an SFS file
@@ -48,9 +49,20 @@ def parse_savefile(sfs, sfs_is_path=True):
         data = open(sfs, "r").read()
     else:
         data = sfs
-    # removes all tabs
-    data = data.replace("\t", "")
-    data = data.replace("\r", "")
+    # removes double slash "//" comments
+    data = re.sub('(?m)//.*', '', data)
+    # removes all tabs and cursor marks
+    data = data.replace("    ", "\t")   # remove large numbers of spaces
+    data = data.replace("=", " =")      # ensure there is a space before each =
+    data = data.replace("\t", "")       # remove tabs
+    data = data.replace("\r", "")       # remove cursor mark
+    # removes % chars (for Eeloo in OPM)
+    data = data.replace("%", "")
+    # replace multiple newlines or spaces with singles
+    while "\n\n" in data:
+        data = data.replace("\n\n", "\n")
+    while "  " in data:
+        data = data.replace("  ", " ")
     # in_nodes tracks the location of data being parsed (what nodes the parser is inside)
     in_nodes = []
     out_dict = OrderedDict()
@@ -83,7 +95,10 @@ def parse_savefile(sfs, sfs_is_path=True):
             # pop the end of the 'stack' used to track attribute location
             # when the end of a node is found
             elif char == "}":
-                in_nodes.pop()
+                try: 
+                    in_nodes.pop()
+                except IndexError:
+                    pass
             # set the end index of the key and start index of the value
             # due to the set check (with 'trigger'), the char must be =
             else:

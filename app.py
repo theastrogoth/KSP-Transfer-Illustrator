@@ -38,6 +38,9 @@ app.title='KSP Transfer Illustrator'
 infile = open('kerbol_system.json','r')
 kerbol_system = jsonpickle.decode(infile.read())
 infile.close
+infile = open('outer_planets_system.json','r')
+outer_planets_system = jsonpickle.decode(infile.read())
+infile.close
 infile = open('sol_system.json','r')
 sol_system = jsonpickle.decode(infile.read())
 infile.close
@@ -205,9 +208,10 @@ app.layout = html.Div(className='row', children=[
                     dcc.RadioItems(
                         id = 'system-radio',
                         options=[
-                            {'label': 'Kerbol', 'value': 'Kerbol'},
-                            {'label': 'Sol', 'value': 'Sol'}],
-                        value='Kerbol',
+                            {'label': 'Kerbol (Stock)', 'value': 'stock'},
+                            {'label': 'Kerbol (Outer Planets Mod)', 'value': 'opm'},
+                            {'label': 'Sol (Real Solar System)', 'value': 'rss'}],
+                        value='stock',
                         ),
                     html.Label('Starting Body'),
                     dcc.Dropdown(
@@ -220,7 +224,7 @@ app.layout = html.Div(className='row', children=[
                         id = 'endingBody-dropdown',
                         value = 'Duna',
                         options=[
-                            {'label': 'Kerbol', 'value': 'Kerbol'},
+                            {'label': 'Sun', 'value': 'Kerbol'},
                             {'label': 'Moho', 'value': 'Moho'},
                             {'label': 'Eve', 'value': 'Eve'},
                             {'label': 'Kerbin', 'value': 'Kerbin'},
@@ -594,6 +598,7 @@ app.layout = html.Div(className='row', children=[
     html.Div(id='allSystems-div', style = {'display': 'none'},
              children=[
                  jsonpickle.encode(kerbol_system),
+                 jsonpickle.encode(outer_planets_system),
                  jsonpickle.encode(sol_system)]),
     html.Div(id='system-div', style={'display': 'none'}, 
              children=jsonpickle.encode(kerbol_system)),
@@ -640,10 +645,12 @@ def set_date_format(selected_format, resizeFactor, rescaleFactor, dayFactor):
     [State('allSystems-div', 'children')]
     )
 def set_system(system_name, resizeFactor, rescaleFactor, all_systems):
-    if system_name == 'Kerbol':
+    if system_name == 'stock':
         system = jsonpickle.decode(all_systems[0])
-    elif system_name == 'Sol':
+    elif system_name == 'opm':
         system = jsonpickle.decode(all_systems[1])
+    elif system_name == 'rss':
+        system = jsonpickle.decode(all_systems[2])
     else:
         return dash.no_update
     
@@ -666,12 +673,16 @@ def set_startBody_options(system_data):
 
 @app.callback(
     Output('endingBody-dropdown', 'options'),
-    [Input('startingBody-dropdown', 'value')],
-    [State('system-div', 'children')]
+    [Input('startingBody-dropdown', 'value'),
+     Input('system-div', 'children')]
     )
 def set_endBody_options(start_body_name, system_data):
     system_data_d = jsonpickle.decode(system_data)
-    sb = [x for x in system_data_d if x.name == start_body_name][0]
+    try:
+        sb = [x for x in system_data_d if x.name == start_body_name][0]
+    except IndexError:
+        end_bodies = [bd.name for bd in system_data_d]
+        return [{'label': i, 'value': i} for i in end_bodies]
     end_bodies = [sb.orb.prim.name]
     if sb != sb.orb.prim:
         for sat in sb.orb.prim.satellites:
@@ -1649,8 +1660,14 @@ def create_orbits_from_persistence_file(persistenceFile, system):
         lan = float(sfsVessel['ORBIT']['LAN'])
         mo = float(sfsVessel['ORBIT']['MNA'])
         epoch = float(sfsVessel['ORBIT']['EPH'])
-        primRef = float(sfsVessel['ORBIT']['REF'])
-        prim = [bd for bd in system if bd.ref == primRef][0]
+        if 'IDENT' in list(sfsVessel['ORBIT'].keys()):
+            primName = sfsVessel['ORBIT']['IDENT']
+            primName = primName.replace('Squad/','')
+            print(primName)
+            prim = [bd for bd in system if bd.name == primName][0]
+        else:
+            primRef = float(sfsVessel['ORBIT']['REF'])
+            prim = [bd for bd in system if bd.ref == primRef][0]
         orb = Orbit(a, ecc, inc, argp, lan, mo, epoch, prim)
         
         if not a==0:

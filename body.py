@@ -1,4 +1,6 @@
 import orbit
+import numpy as np
+from copy import deepcopy
 
 class Body:
     """Celestial body defined by its physical characeteristics and its orbit.
@@ -30,7 +32,7 @@ class Body:
             self.add_to_primary()
             
         if (soi is None) and not (orb is None):
-            self.soi = orb.a * (mu/orb.prim.mu)**(2/5)
+            self.set_soi(orb.a, mu, orb.prim.mu)
         else:
             self.soi = soi
         
@@ -39,11 +41,46 @@ class Body:
         else:
             self.satellites = satellites
     
+    def set_soi(self, sma, mu, muPrim):
+        self.soi = sma * (mu/muPrim)**(2/5)
+    
     def add_to_primary(self):
         """Adds the body to its primary's list of satellites."""
         if not self.orb.prim is None:
             if not(self in self.orb.prim.satellites):
                 self.orb.prim.satellites.append(self)
+    
+    def remove_from_primary(self):
+        """Removes body from list of satellites of the primary body."""
+        if not self.orb.prim is None:
+            satList = [sat.name for sat in self.orb.prim.satellites]
+            if self.name in satList:
+                delIndex = satList.index(self.name)
+                del self.orb.prim.satellites[delIndex]
+                
+    
+    def sort_satellites(self):
+        """Orders satellites by semimajor axis (increasing)."""
+        sats = self.satellites
+        SMAs = [sat.orb.a for sat in sats]
+        idxs = np.argsort(SMAs)
+        newSats = []
+        for idx in idxs:
+            newSats.append(sats[idx])
+        
+        # use name as tiebreaker
+        for ii, a in enumerate(SMAs):
+            duplicates = [jj for jj, sma in enumerate(SMAs) if sma==a]
+            if len(duplicates) > 1:
+                sats = deepcopy(newSats)
+                names = [newSats[jj].name for jj in duplicates]
+                metaIdxs = np.argsort(names)
+                for kk, metaIdx in enumerate(metaIdxs):
+                    newSats[duplicates[kk]] = sats[metaIdx]
+        
+        self.satellites = newSats
+        return
+    
     
     def rescale(self, factor):
         if not self.orb.a is None:
