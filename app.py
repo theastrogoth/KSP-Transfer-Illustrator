@@ -9,6 +9,7 @@ from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 from plotutils import *
 from sfsutils import parse_savefile
+from iniutils import ini_to_system
 from base64 import b64decode
 
 import jsonpickle
@@ -210,7 +211,8 @@ app.layout = html.Div(className='row', children=[
                         options=[
                             {'label': 'Kerbol (Stock)', 'value': 'stock'},
                             {'label': 'Kerbol (Outer Planets Mod)', 'value': 'opm'},
-                            {'label': 'Sol (Real Solar System)', 'value': 'rss'}],
+                            {'label': 'Sol (Real Solar System)', 'value': 'rss'},
+                            {'label': 'Uploaded System', 'value': 'upload'}],
                         value='stock',
                         ),
                     html.Label('Starting Body'),
@@ -289,7 +291,7 @@ app.layout = html.Div(className='row', children=[
                     html.Label('Earliest Departure Day'),
                     dcc.Input(id = 'earlyStartDay-input', value=1, 
                               type='number'),
-                    html.H3('Load Orbits from sfs File'),
+                    html.H3('Load Orbits from .sfs File'),
                     dcc.Upload(
                         id='persistenceFile-upload',
                         children=html.Div([
@@ -308,7 +310,7 @@ app.layout = html.Div(className='row', children=[
                             },
                         multiple=False
                         ),
-                    html.Label('Select orbit to add'),
+                    html.Label('Select orbit to add:'),
                     dcc.Dropdown(
                         id='persistenceVessels-dropdown',
                         ),
@@ -319,6 +321,25 @@ app.layout = html.Div(className='row', children=[
                     html.Button(children = 'Add Ending Orbit',
                                 id = 'addEndOrbit-button',
                                 n_clicks = 0
+                        ),
+                    html.H3('Load System from .ini File'),
+                    dcc.Upload(
+                        id='systemFile-upload',
+                        children=html.Div([
+                            'Drag and Drop or ',
+                            html.A('Select Files')
+                        ]),
+                        style={
+                            'width': '100%',
+                            'height': '60px',
+                            'lineHeight': '60px',
+                            'borderWidth': '1px',
+                            'borderStyle': 'dashed',
+                            'borderRadius': '5px',
+                            'textAlign': 'center',
+                            'margin': '10px'
+                            },
+                        multiple=False
                         ),
                     ]),
                 dcc.Tab(
@@ -599,7 +620,8 @@ app.layout = html.Div(className='row', children=[
              children=[
                  jsonpickle.encode(kerbol_system),
                  jsonpickle.encode(outer_planets_system),
-                 jsonpickle.encode(sol_system)]),
+                 jsonpickle.encode(sol_system),
+                 jsonpickle.encode(kerbol_system)]),
     html.Div(id='system-div', style={'display': 'none'}, 
              children=jsonpickle.encode(kerbol_system)),
     html.Div(id='persistenceVessels-div', style={'display': 'none'},
@@ -638,11 +660,32 @@ def set_date_format(selected_format, resizeFactor, rescaleFactor, dayFactor):
     return dict(day=day, year=year)
 
 @app.callback(
+    Output('allSystems-div','children'),
+    [Input('systemFile-upload','contents')],
+    [State('allSystems-div','children'),
+     State('system-radio','options')],
+    prevent_initial_call = True
+    )
+def add_system_from_ini(iniFile, allSystems, radioOptions):
+    if iniFile is None:
+        return dash.no_update, dash.no_update
+    
+    iniFile = iniFile.split(',')[1]
+    iniFile = b64decode(iniFile).decode('utf-8')
+    newSystem = ini_to_system(iniFile, False)
+    
+    allSystems[3] = jsonpickle.encode(newSystem)
+    
+    print(jsonpickle.decode(allSystems[3])[-1].name)
+    
+    return allSystems
+
+@app.callback(
      Output('system-div', 'children'),
     [Input('system-radio','value'),
      Input('systemResize-input','value'),
-     Input('systemRescale-input','value')],
-    [State('allSystems-div', 'children')]
+     Input('systemRescale-input','value'),
+     Input('allSystems-div', 'children')]
     )
 def set_system(system_name, resizeFactor, rescaleFactor, all_systems):
     if system_name == 'stock':
@@ -651,6 +694,9 @@ def set_system(system_name, resizeFactor, rescaleFactor, all_systems):
         system = jsonpickle.decode(all_systems[1])
     elif system_name == 'rss':
         system = jsonpickle.decode(all_systems[2])
+    elif system_name == 'upload':
+        system = jsonpickle.decode(all_systems[3])
+        print(system[-1].name)
     else:
         return dash.no_update
     
