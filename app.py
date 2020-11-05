@@ -66,157 +66,12 @@ def serve_static(path):
 app.layout = html.Div(id='kspti-body', children=[
   html.Div(className='row', children=[
     html.Div(className='four columns', children=[
-        dcc.Tabs(id='kspti-control-tabs', className='control-tabs', value='params', children=[
+        dcc.Tabs(id='kspti-control-tabs', className='control-tabs', value='basic', children=[
             dcc.Tab(
-                label='Instructions',
-                value='instruct',
+                label='Basic Mission Parameters',
+                value='basic',
                 children = html.Div(className='control-tab', children = [
-                    html.H3('KSP Transfer Illustrator'),
-                    dcc.Markdown('''
-                                 The KSP Transer Illustrator app calculates 
-                                 patched-conic transfer trajectories between 
-                                 celestial bodies in Kerbal Space Program. 
-                                 The app also generates interactive 3D plots 
-                                 for each conic in the transfer, which can be 
-                                 rotated, zoomed in/out, and panned. Plotted 
-                                 orbits also contain hover-text with useful
-                                 information.  
-                                   
-                                 Once a Porkchop plot has been generated, you 
-                                 can click anywhere in the plot to view 
-                                 information about the transfer with the 
-                                 corresponding start time and flight duration.
-                                 The 3D orbit plots will be updated when you 
-                                 do this.  
-                                   
-                                 #### Mission Parameters  
-                                 
-                                 **Date Format**: Display times according to 
-                                 the Kerbin or Earth calendars.  
-                                   
-                                 **System**: Choice of solar system.  
-                                   
-                                 **Starting Body**: Reference body for the 
-                                 starting orbit. Any body in the system is 
-                                 valid.  
-                                   
-                                 **Ending Body**: Reference body for the 
-                                 ending orbit. Valid options include the 
-                                 starting body and its satellite bodies, and 
-                                 the starting body's reference body and its 
-                                 satellite bodies.  
-                                   
-                                 **Starting altitude**: Altitude of the 
-                                 starting orbit over its reference body.
-                                 The starting orbit is assumed to be circular 
-                                 and equatorial unless custom parameters are 
-                                 entered in the Advanced Settings tab.  
-                                   
-                                 **Ending altitude**: Altitude of the ending 
-                                 orbit over its reference body. The ending 
-                                 orbit is assumed to be circular and 
-                                 equatorial unless custom parameters are 
-                                 are entered in the Advanced Settings tab.  
-                                   
-                                 **Cheapest starting orbit**: Aligns orbital 
-                                 plane of the starting orbit to the ejection 
-                                 trajectory to reduce Δv cost. Useful if you 
-                                 haven't yet launched your craft into orbit.  
-                                   
-                                 **Cheapest ending orbit**: Aligns orbital 
-                                 plane of the ending orbit to the insertion 
-                                 trajectory to minimize Δv cost. Useful if you 
-                                 are not aiming for a specific orbit at the 
-                                 target body.  
-                                   
-                                 **No insertion burn**: Excludes a capture 
-                                 burn at the target body. Useful for flybys 
-                                 or aerocaptures.  
-                                   
-                                 **Match starting mean anomaly and epoch**: 
-                                 Adjusts the start time to give a departure 
-                                 burn that matches the start orbit's 
-                                 position. If not selected, the mean anomaly
-                                 of the start parking orbit will not match the 
-                                 input under Advanced Settings.  
-                                   
-                                 **Transfer Type**: Choice of inclusion of a 
-                                 plane change maneuver.  
-                                   
-                                 **Earliest Departure Year/Day**: Specifies 
-                                 earlist time to search for a transfer.  
-                                   
-                                 #### Advanced Settings  
-                                 
-                                 **Departure Time and Flight Duration**: 
-                                 Use these settings to customize the times to 
-                                 be sampled when computing transfsers. If the 
-                                 app fails to due computation timeout, reduce 
-                                 the number of points sampled per axis.  
-                                   
-                                 **Custom Starting/Ending Orbits**: Keplerian 
-                                 elements defining starting and ending orbits. 
-                                 These can be copy/pasted from HyperEdit.  
-                                   
-                                 #### Notes
-                                   
-                                 The app attempts to accurately "patch" 
-                                 trajectories across SOI changes to get highly
-                                 accurate trajectories, but the patching 
-                                 sometimes fails. A warning message is 
-                                 is displayed when this happens.  
-                                   
-                                 Due to the limits of Heroku (and my 
-                                 knowledge of app development), this app fails 
-                                 when any calculations take longer than 30s. 
-                                 If this happens, try decreasing the 
-                                 number of points sampled per axis in the 
-                                 Advanced Settings tab.  
-                                   
-                                 I plan on improving this as I learn more 
-                                 about astrodynamics and app deployment. 
-                                 Please leave feedback about any inaccurate 
-                                 trajectories, any bugs you encounter, or 
-                                 suggestions you have at the KSP Forum thread 
-                                 for this project or its GitHub repository:
-                                 '''),
-                    html.A(html.Button('KSP Forum Thread',className='control-button'),
-                     href='https://forum.kerbalspaceprogram.com/index.php?/topic/195405-ksp-transfer-illustrator/'
-                           ),
-                    html.A(html.Button('Github',className='control-button'),
-                     href='https://github.com/theastrogoth/KSP-Transfer-Illustrator/issues'
-                           ),
-                    ])
-                ),
-            dcc.Tab(
-                label='Mission Parameters',
-                value = 'params',
-                children = html.Div(className='control-tab', children = [
-                    html.H3('Mission Parameters'),
-                    html.Div(
-                        className='control-name',
-                        ),
-                    html.Label('Date Format'),
-                    dcc.RadioItems(
-                        id = 'dateFormat-radio',
-                        options=[
-                            {'label': 'Kerbin Time (6h days, 426d years)',
-                             'value': 'Kerbin'},
-                            {'label': 'Earth Time (24h days, 365d years)',
-                             'value': 'Earth'},
-                            ],
-                        value='Kerbin'
-                        ),
-                    html.Label('System'),
-                    dcc.RadioItems(
-                        id = 'system-radio',
-                        options=[
-                            {'label': 'Kerbol (Stock)', 'value': 'stock'},
-                            {'label': 'Kerbol (Outer Planets Mod)', 'value': 'opm'},
-                            {'label': 'Sol (Real Solar System)', 'value': 'rss'},
-                            {'label': 'Uploaded System', 'value': 'upload'}],
-                        value='stock',
-                        ),
+                    html.H3('Departure and Arrival'),
                     html.Label('Starting Body'),
                     dcc.Dropdown(
                         id = 'startingBody-dropdown',
@@ -246,6 +101,23 @@ app.layout = html.Div(id='kspti-body', children=[
                     html.Label('Ending altitude (km)'),
                     dcc.Input(id = 'endPark-input', value=100, 
                               type='number'),
+                    html.Label('Earliest Departure Year'),
+                    dcc.Input(id = 'earlyStartYear-input', value=1, 
+                              type='number'),
+                    html.Label('Earliest Departure Day'),
+                    dcc.Input(id = 'earlyStartDay-input', value=1, 
+                              type='number'),
+                    html.H3('Transfer Options'),
+                    html.Label('Transfer Type'),
+                    dcc.Dropdown(
+                        id = 'trType-dropdown',
+                        options=[{'label': 'Ballistic', 'value': 'ballistic'},
+                                 {'label': 'Mid-course plane change', 
+                                  'value': 'plane change'},
+                                 {'label': 'Optimal', 'value': 'optimal'}
+                                 ],
+                        value='ballistic'
+                        ),
                     dcc.Checklist(
                         id = 'cheapStartOrbit-checklist',
                         value = [],
@@ -277,22 +149,169 @@ app.layout = html.Div(id='kspti-body', children=[
                              'value': 'True'}
                             ],
                         ),
-                    html.Label('Transfer Type'),
-                    dcc.Dropdown(
-                        id = 'trType-dropdown',
-                        options=[{'label': 'Ballistic', 'value': 'ballistic'},
-                                 {'label': 'Mid-course plane change', 
-                                  'value': 'plane change'},
-                                 {'label': 'Optimal', 'value': 'optimal'}
-                                 ],
-                        value='ballistic'
+                    ])),
+            dcc.Tab(
+                label='System Settings',
+                value='system',
+                children = html.Div(className='control-tab', children = [
+                    html.H3('System Options'),
+                    dcc.RadioItems(
+                        id = 'system-radio',
+                        options=[
+                            {'label': 'Kerbol (Stock)', 'value': 'stock'},
+                            {'label': 'Kerbol (Outer Planets Mod)', 'value': 'opm'},
+                            {'label': 'Sol (Real Solar System)', 'value': 'rss'},
+                            {'label': 'Uploaded System', 'value': 'upload'}],
+                        value='stock',
                         ),
+                    html.H3('System Resizing/Rescaling'),
+                    html.Label('System Resize Factor'),
+                    dcc.Input(id = 'systemResize-input',  
+                              type='number',
+                              value = 1,
+                              min = 0),
+                    html.Label('System Rescale Factor'),
+                    dcc.Input(id = 'systemRescale-input',
+                              type='number',
+                              value = 1,
+                              min = 0),
+                    html.Label('Day Length Multiplier'),
+                    dcc.Input(id='systemDayScale-input',
+                              type='number',
+                              value = 1,
+                              min = 0),
+                    html.H3('Load System from .ini File'),
+                    dcc.Upload(
+                        id='systemFile-upload',
+                        className='control-upload',
+                        children=html.Div([
+                            'Drag and Drop or ',
+                            html.A('Select Files')
+                        ]),
+                        style={
+                            'width': '100%',
+                            'height': '60px',
+                            'lineHeight': '60px',
+                            'borderWidth': '1px',
+                            'borderStyle': 'dashed',
+                            'borderRadius': '5px',
+                            'textAlign': 'center',
+                            'margin': '10px'
+                            },
+                        multiple=False
+                        ),
+                    ])),
+            dcc.Tab(
+                label='Time Settings',
+                value='time',
+                children = html.Div(className='control-tab', children = [
+                    html.H3('Time Settings'),
+                    html.Label('Date Format'),
+                    dcc.RadioItems(
+                        id = 'dateFormat-radio',
+                        options=[
+                            {'label': 'Kerbin Time (6h days, 426d years)',
+                             'value': 'Kerbin'},
+                            {'label': 'Earth Time (24h days, 365d years)',
+                             'value': 'Earth'},
+                            ],
+                        value='Kerbin'
+                        ),
+                    html.H3('Porkchop Plot Bounds'),
                     html.Label('Earliest Departure Year'),
-                    dcc.Input(id = 'earlyStartYear-input', value=1, 
+                    dcc.Input(id = 'earlyStartYear2-input', value=1,
                               type='number'),
                     html.Label('Earliest Departure Day'),
-                    dcc.Input(id = 'earlyStartDay-input', value=1, 
+                    dcc.Input(id = 'earlyStartDay2-input', value=1,
                               type='number'),
+                    html.Label('Latest Departure Year'),
+                    dcc.Input(id = 'lateStartYear-input',
+                              type='number'),
+                    html.Label('Latest Departure Day'),
+                    dcc.Input(id = 'lateStartDay-input',
+                              type='number'),
+                    html.Label('Shortest Flight Duration (days)'),
+                    dcc.Input(id = 'shortFlightDays-input',
+                              type='number'),
+                    html.Label('Longest Flight Duration (days)'),
+                    dcc.Input(id = 'longFlightDays-input',
+                              type='number'),
+                    html.Label('Number of Points Sampled per Axis'),
+                    dcc.Input(id = 'numPointsSampled-input', value=25,
+                              type='number'),
+                    ])),
+            dcc.Tab(
+                label='Orbit Settings',
+                value='orbits',
+                children = html.Div(className='control-tab', children = [
+                    html.Div(className='row', children = [
+                        html.Div(className='six columns', children = [
+                            html.H3('Starting Orbit'),
+                            html.Label(id = 'start-ref-label',
+                                       children='Reference Body: Kerbin'),
+                            html.Label('Semi-major axis (m)'),
+                            dcc.Input(id = 'starta-input',  
+                                      type='number',
+                                      value = 700000),
+                            html.Label('Eccentricity'),
+                            dcc.Input(id = 'startecc-input',  
+                                      type='number',
+                                      value = 0),
+                            html.Label('Inclination (°)'),
+                            dcc.Input(id = 'startinc-input',  
+                                      type='number',
+                                      value = 0),
+                            html.Label('Argument of the Periapsis (°)'),
+                            dcc.Input(id = 'startargp-input',  
+                                      type='number',
+                                      value = 0),
+                            html.Label('Longitude of the Ascending Node (°)'),
+                            dcc.Input(id = 'startlan-input',  
+                                      type='number',
+                                      value = 0),
+                            html.Label('Mean anomaly at epoch (radians)'),
+                            dcc.Input(id = 'startmo-input',  
+                                      type='number',
+                                      value = 0),
+                            html.Label('Epoch (s)'),
+                            dcc.Input(id = 'startepoch-input',  
+                                      type='number',
+                                      value = 0),
+                            ]),
+                        html.Div(className='six columns', children = [
+                            html.H3('Ending Orbit'),
+                            html.Label(id = 'end-ref-label',
+                                       children='Reference Body: Duna'),
+                            html.Label('Semi-major axis (m)'),
+                            dcc.Input(id = 'enda-input',  
+                                      type='number',
+                                      value = 420000),
+                            html.Label('Eccentricity'),
+                            dcc.Input(id = 'endecc-input',  
+                                      type='number',
+                                      value = 0),
+                            html.Label('Inclination (°)'),
+                            dcc.Input(id = 'endinc-input',  
+                                      type='number',
+                                      value = 0),
+                            html.Label('Argument of the Periapsis (°)'),
+                            dcc.Input(id = 'endargp-input',  
+                                      type='number',
+                                      value = 0),
+                            html.Label('Longitude of the Ascending Node (°)'),
+                            dcc.Input(id = 'endlan-input',  
+                                      type='number',
+                                      value = 0),
+                            html.Label('Mean anomaly at epoch (radians)'),
+                            dcc.Input(id = 'endmo-input',  
+                                      type='number',
+                                      value = 0),
+                            html.Label('Epoch (s)'),
+                            dcc.Input(id = 'endepoch-input',  
+                                      type='number',
+                                      value = 0),
+                            ]),
+                        ]),
                     html.H3('Load Orbits from .sfs File'),
                     dcc.Upload(
                         id='persistenceFile-upload',
@@ -327,136 +346,150 @@ app.layout = html.Div(id='kspti-body', children=[
                                 id = 'addEndOrbit-button',
                                 n_clicks = 0
                         ),
-                    html.H3('Load System from .ini File'),
-                    dcc.Upload(
-                        id='systemFile-upload',
-                        className='control-upload',
-                        children=html.Div([
-                            'Drag and Drop or ',
-                            html.A('Select Files')
-                        ]),
-                        style={
-                            'width': '100%',
-                            'height': '60px',
-                            'lineHeight': '60px',
-                            'borderWidth': '1px',
-                            'borderStyle': 'dashed',
-                            'borderRadius': '5px',
-                            'textAlign': 'center',
-                            'margin': '10px'
-                            },
-                        multiple=False
-                        ),
                     ])),
-                dcc.Tab(
-                    label='Advanced Settings',
-                    value = 'adv', 
-                    children = html.Div(className='control-tab', children = [
-                        html.H3('Departure Time and Flight Duration'),
-                        html.Label('Earliest Departure Year'),
-                        dcc.Input(id = 'earlyStartYear2-input', value=1,
-                                  type='number'),
-                        html.Label('Earliest Departure Day'),
-                        dcc.Input(id = 'earlyStartDay2-input', value=1,
-                                  type='number'),
-                        html.Label('Latest Departure Year'),
-                        dcc.Input(id = 'lateStartYear-input',
-                                  type='number'),
-                        html.Label('Latest Departure Day'),
-                        dcc.Input(id = 'lateStartDay-input',
-                                  type='number'),
-                        html.Label('Shortest Flight Duration (days)'),
-                        dcc.Input(id = 'shortFlightDays-input',
-                                  type='number'),
-                        html.Label('Longest Flight Duration (days)'),
-                        dcc.Input(id = 'longFlightDays-input',
-                                  type='number'),
-                        html.Label('Number of Points Sampled per Axis'),
-                        dcc.Input(id = 'numPointsSampled-input', value=25,
-                                  type='number'),
-                        
-                        html.H3('Custom Starting Orbit'),
-                        html.Label('Semi-major axis (m)'),
-                        dcc.Input(id = 'starta-input',  
-                                  type='number',
-                                  value = 700000),
-                        html.Label('Eccentricity'),
-                        dcc.Input(id = 'startecc-input',  
-                                  type='number',
-                                  value = 0),
-                        html.Label('Inclination (°)'),
-                        dcc.Input(id = 'startinc-input',  
-                                  type='number',
-                                  value = 0),
-                        html.Label('Argument of the Periapsis (°)'),
-                        dcc.Input(id = 'startargp-input',  
-                                  type='number',
-                                  value = 0),
-                        html.Label('Longitude of the Ascending Node (°)'),
-                        dcc.Input(id = 'startlan-input',  
-                                  type='number',
-                                  value = 0),
-                        html.Label('Mean anomaly at epoch (radians)'),
-                        dcc.Input(id = 'startmo-input',  
-                                  type='number',
-                                  value = 0),
-                        html.Label('Epoch (s)'),
-                        dcc.Input(id = 'startepoch-input',  
-                                  type='number',
-                                  value = 0),
-                        
-                        html.H3('Custom Ending Orbit'),
-                        html.Label('Semi-major axis (m)'),
-                        dcc.Input(id = 'enda-input',  
-                                  type='number',
-                                  value = 420000),
-                        html.Label('Eccentricity'),
-                        dcc.Input(id = 'endecc-input',  
-                                  type='number',
-                                  value = 0),
-                        html.Label('Inclination (°)'),
-                        dcc.Input(id = 'endinc-input',  
-                                  type='number',
-                                  value = 0),
-                        html.Label('Argument of the Periapsis (°)'),
-                        dcc.Input(id = 'endargp-input',  
-                                  type='number',
-                                  value = 0),
-                        html.Label('Longitude of the Ascending Node (°)'),
-                        dcc.Input(id = 'endlan-input',  
-                                  type='number',
-                                  value = 0),
-                        html.Label('Mean anomaly at epoch (radians)'),
-                        dcc.Input(id = 'endmo-input',  
-                                  type='number',
-                                  value = 0),
-                        html.Label('Epoch (s)'),
-                        dcc.Input(id = 'endepoch-input',  
-                                  type='number',
-                                  value = 0),
-                        
-                        html.H3('System Options'),
-                        html.Label('System Resize Factor'),
-                        dcc.Input(id = 'systemResize-input',  
-                                  type='number',
-                                  value = 1,
-                                  min = 0),
-                        html.Label('System Rescale Factor'),
-                        dcc.Input(id = 'systemRescale-input',
-                                  type='number',
-                                  value = 1,
-                                  min = 0),
-                        html.Label('Day Length Multiplier'),
-                        dcc.Input(id='systemDayScale-input',
-                                  type='number',
-                                  value = 1,
-                                  min = 0),
-                        ])),
+            dcc.Tab(
+                label='Instructions',
+                value='instruct',
+                children = html.Div(className='control-tab', children = [
+                    html.H3('KSP Transfer Illustrator'),
+                    dcc.Markdown('''
+                                 The KSP Transer Illustrator app calculates 
+                                 patched-conic transfer trajectories between 
+                                 celestial bodies in Kerbal Space Program. 
+                                 The app also generates interactive 3D plots 
+                                 for each conic in the transfer, which can be 
+                                 rotated, zoomed in/out, and panned. Plotted 
+                                 orbits also contain hover-text with useful
+                                 information.  
+                                   
+                                 Once a Porkchop plot has been generated, you 
+                                 can click anywhere in the plot to view 
+                                 information about the transfer with the 
+                                 corresponding start time and flight duration.
+                                 The 3D orbit plots will be updated when you 
+                                 do this.  
+                                   
+                                 #### Basic Mission Parameters  
+                                 
+                                 **Starting Body**: Reference body for the 
+                                 starting orbit.  
+                                   
+                                 **Ending Body**: Reference body for the 
+                                 ending orbit.  
+                                   
+                                 **Starting altitude**: Altitude of the 
+                                 starting orbit over its reference body.
+                                 The starting orbit is assumed to be circular 
+                                 and equatorial unless custom parameters are 
+                                 entered in the Advanced Settings tab.  
+                                   
+                                 **Ending altitude**: Altitude of the ending 
+                                 orbit over its reference body. The ending 
+                                 orbit is assumed to be circular and 
+                                 equatorial unless custom parameters are 
+                                 are entered in the Advanced Settings tab.  
+                                 
+                                 **Earliest Departure Day/Year**: Sets the 
+                                 earliest possible time of the departure burn.  
+                                   
+                                 **Transfer Type**: Choice of inclusion of a 
+                                 plane change maneuver.  
+                                   
+                                 **Cheapest starting orbit**: Aligns orbital 
+                                 plane of the starting orbit to the ejection 
+                                 trajectory to reduce Δv cost. Useful if you 
+                                 haven't yet launched your craft into orbit.  
+                                   
+                                 **Cheapest ending orbit**: Aligns orbital 
+                                 plane of the ending orbit to the insertion 
+                                 trajectory to minimize Δv cost. Useful if you 
+                                 are not aiming for a specific orbit at the 
+                                 target body.  
+                                   
+                                 **No insertion burn**: Excludes a capture 
+                                 burn at the target body. Useful for flybys 
+                                 or aerocaptures.  
+                                   
+                                 **Match starting mean anomaly and epoch**: 
+                                 Adjusts the start time to give a departure 
+                                 burn that matches the start orbit's 
+                                 position. Useful to get exact timing for 
+                                 burn maneuvers.  
+                                   
+                                 #### System Settings  
+                                 
+                                 **System**: Choice of solar system.  
+                                   
+                                 **System Resize Factor**: Multiplies 
+                                 equatorial radius for every body in the 
+                                 system. Also recalculates mass to match 
+                                 original surface gravity.  
+                                   
+                                 **System Rescale Factor**: Multiplies orbit 
+                                 size for every body in the system.  
+                                   
+                                 **Load System from .ini File**: Upload info 
+                                 for your system from an .ini file generated 
+                                 by KSPTOT. Necessary for most planet packs.  
+                                   
+                                 #### Time Settings  
+                                 
+                                 **Date Format**: Sets the length days and 
+                                 years.  
+                                   
+                                 **Porkchop Plot Bounds**: 
+                                 Use these settings to customize the times to 
+                                 be sampled when computing transfsers. If the 
+                                 app fails to due computation timeout, reduce 
+                                 the number of points sampled per axis.  
+                                   
+                                 #### Orbit Settings  
+                                 
+                                 **Starting/Ending Orbits**: Keplerian 
+                                 elements defining starting and ending orbits. 
+                                 These can be copy/pasted from HyperEdit or 
+                                 read from a savefile.  
+                                   
+                                 **Load Orbits from .sfs File**: Upload info 
+                                 for all orbits (crafts, asteroids, etc.) from 
+                                 your savefile. Space objects can be selected 
+                                 by name, and their orbits can be set as the 
+                                 beginning or ending orbit.
+                                 
+                                 #### Notes
+                                   
+                                 The app attempts to accurately "patch" 
+                                 trajectories across SOI changes to get highly
+                                 accurate trajectories, but the patching 
+                                 sometimes fails. A warning message is 
+                                 is displayed when this happens.  
+                                   
+                                 Due to the limits of Heroku (and my 
+                                 knowledge of app development), this app fails 
+                                 when any calculations take longer than 30s. 
+                                 If this happens, try decreasing the 
+                                 number of points sampled per axis in the 
+                                 Advanced Settings tab.  
+                                   
+                                 I plan on improving this as I learn more 
+                                 about astrodynamics and app deployment. 
+                                 Please leave feedback about any inaccurate 
+                                 trajectories, any bugs you encounter, or 
+                                 suggestions you have at the KSP Forum thread 
+                                 for this project or its GitHub repository:
+                                 '''),
+                    html.A(html.Button('KSP Forum Thread',className='control-button'),
+                     href='https://forum.kerbalspaceprogram.com/index.php?/topic/195405-ksp-transfer-illustrator/'
+                           ),
+                    html.A(html.Button('Github',className='control-button'),
+                     href='https://github.com/theastrogoth/KSP-Transfer-Illustrator/issues'
+                           ),
+                    ])),
             ]),
         ]),
     html.Div(className='four columns', children = [
         html.H3('Porkchop Plot'),
-        html.Label('Display Type'),
+        dcc.Markdown('**Display Type**'),
         dcc.Dropdown(
                         id = 'porkchopDisplay-dropdown',
                         options=[{'label': 'Total Δv', 'value': 'total'},
@@ -677,8 +710,6 @@ def add_system_from_ini(iniFile, allSystems, radioOptions):
     
     allSystems[3] = jsonpickle.encode(newSystem)
     
-    print(jsonpickle.decode(allSystems[3])[-1].name)
-    
     return allSystems
 
 @app.callback(
@@ -697,7 +728,6 @@ def set_system(system_name, resizeFactor, rescaleFactor, all_systems):
         system = jsonpickle.decode(all_systems[2])
     elif system_name == 'upload':
         system = jsonpickle.decode(all_systems[3])
-        print(system[-1].name)
     else:
         return dash.no_update
     
@@ -737,6 +767,20 @@ def set_endBody_options(start_body_name, system_data):
     for sat in sb.satellites:
         end_bodies.append(sat.name)
     return [{'label': i, 'value': i} for i in end_bodies]
+
+@app.callback(
+     Output('start-ref-label','children'),
+    [Input('startingBody-dropdown', 'value')],
+    )
+def update_start_body_label(startBodyName):
+    return ['Reference Body: ' + startBodyName]
+
+@app.callback(
+     Output('end-ref-label','children'),
+    [Input('endingBody-dropdown', 'value')],
+    )
+def update_end_body_label(endBodyName):
+    return ['Reference Body: ' + endBodyName]
 
 @app.callback(
      Output('starta-input', 'value'),
@@ -1470,7 +1514,7 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
                          dateFormat, prevFig):
     
     if chosenTransfer is None:
-        return prevFig, ""
+        return prevFig, dash.no_update, ""
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     
@@ -1761,7 +1805,6 @@ def create_orbits_from_persistence_file(persistenceFile, system):
         if 'IDENT' in list(sfsVessel['ORBIT'].keys()):
             primName = sfsVessel['ORBIT']['IDENT']
             primName = primName.replace('Squad/','')
-            print(primName)
             prim = [bd for bd in system if bd.name == primName][0]
         else:
             primRef = float(sfsVessel['ORBIT']['REF'])
