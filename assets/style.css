@@ -1,0 +1,127 @@
+body {
+  background-color: #1E1E1E;
+  color: #E4E4E4;
+  margin: 0;
+  padding: 0;
+}
+#kspti-body {
+    color: #E4E4E4 !important;
+    background-color: #1E1E1E !important;
+}
+#kspti-body ::-webkit-scrollbar {
+    background-color: #C8C8C8 !important;
+}
+#kspti-body ::-webkit-scrollbar-thumb {
+    background-color: #2389A8 !important;
+}
+
+#kspti-wrapper {
+    width: 900px;
+    display: inline-block !important;
+    padding: 0px;
+    overflow-x: scroll;
+    margin: 0px;
+}
+#kspti-wrapper::-webkit-scrollbar {
+    display: none;
+}
+
+#kspti-control-tabs, #kspti-control-tabs .tab {
+    background-color: #1E1E1E !important;
+}
+#kspti-body .control-tab {
+    background-color: #1E1E1E !important;
+}
+#kspti-control-tabs .tab {
+    background-color: #1E1E1E;
+    color: #E4E4E4;
+    border-color: #727272 !important;
+}
+#kspti-control-tabs .tab--selected {
+    color: #33C3F0 !important;
+    border-top-color: initial !important;
+}
+#kspti-control-tabs .Select-control {
+    border: solid 1px #727272;
+    background-color: #1E1E1E !important;
+}
+#kspti-body .Select, #kspti-body .Select-value, #kspti-body .Select-control, #kspti-body input, #kspti-body .Select-menu-outer, #kspti-body .Select-value-label {
+    background-color: #1E1E1E !important;
+    border-color: #727272 !important;
+    color: #E4E4E4;
+}
+#kspti-body .Select-value-icon {
+    color: #33C3F0;
+    border-right: 1px solid #AAAAAA;
+}
+#kspti-body .control-slider {
+    width: 225px !important;
+    margin-top: 4px;
+}
+#kspti-body .rc-slider-track {
+    background-color: #33C3F0 !important;
+}
+#kspti-body .rc-slider-handle {
+    background-color: #33C3F0;
+    border: solid 2px #33C3F0 !important;
+}
+#kspti-body .rc-slider-rail {
+    background-color: #C8C8C8 !important;
+}
+
+#threshold-wrapper {
+    margin-top: -30px;
+}
+
+#kspti-body #remove-all-group-markers {
+    float: right;
+    font-size:7pt !important;
+    line-height: 10pt;
+    padding: 0px !important;
+    color: #E4E4E4;
+    font-weight: 100;
+    border-color: #33C3F0;
+    text-align: center;
+    width: 140px;
+    height: 25px;
+    margin-top: 5px;
+    transition-duration: 500ms;
+}
+
+#kspti-body #remove-all-group-markers:hover {
+    border-color: #E4E4E4;
+}
+#kspti-body .app-controls-name {
+    width: 125px;
+}
+
+#kspti-body #annotation {
+    width: 100% !important;
+}
+#kspti-datasets {
+    width: 100%;
+}
+
+#kspti-body #file-upload-name {
+    display: block;
+    margin-left: 10px;
+}
+#kspti-body .control-button {
+    color: #E4E4E4;
+}
+#kspti-body .control-button:hover {
+    color: #33C3F0 !important;
+    border-color: #33C3F0 !important;
+}
+    
+#kspti-body .control-upload {
+    border-color: #33C3F0 !important;
+}
+
+#kspti-file-upload-container {
+    margin: 10px 0px;
+}
+
+#kspti-body .graph-border {
+    border: 1px solid #727272;
+}
