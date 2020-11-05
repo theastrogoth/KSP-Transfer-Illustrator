@@ -247,8 +247,8 @@ app.layout = html.Div(id='kspti-body', children=[
                     html.Div(className='row', children = [
                         html.Div(className='six columns', children = [
                             html.H3('Starting Orbit'),
-                            html.Label(id = 'start-ref-label',
-                                       children='Reference Body: Kerbin'),
+                            dcc.Markdown(id = 'start-ref-label',
+                                         children='**Reference Body**: Kerbin'),
                             html.Label('Semi-major axis (m)'),
                             dcc.Input(id = 'starta-input',  
                                       type='number',
@@ -280,8 +280,8 @@ app.layout = html.Div(id='kspti-body', children=[
                             ]),
                         html.Div(className='six columns', children = [
                             html.H3('Ending Orbit'),
-                            html.Label(id = 'end-ref-label',
-                                       children='Reference Body: Duna'),
+                            dcc.Markdown(id = 'end-ref-label',
+                                         children='**Reference Body**: Duna'),
                             html.Label('Semi-major axis (m)'),
                             dcc.Input(id = 'enda-input',  
                                       type='number',
@@ -773,14 +773,14 @@ def set_endBody_options(start_body_name, system_data):
     [Input('startingBody-dropdown', 'value')],
     )
 def update_start_body_label(startBodyName):
-    return ['Reference Body: ' + startBodyName]
+    return ['**Reference Body**: ' + startBodyName]
 
 @app.callback(
      Output('end-ref-label','children'),
     [Input('endingBody-dropdown', 'value')],
     )
 def update_end_body_label(endBodyName):
-    return ['Reference Body: ' + endBodyName]
+    return ['**Reference Body**: ' + endBodyName]
 
 @app.callback(
      Output('starta-input', 'value'),
