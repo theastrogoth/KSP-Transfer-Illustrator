@@ -83,11 +83,14 @@ class Body:
     
     
     def rescale(self, factor):
+        """Multiplies the SMA of the body's orbit by a given factor."""
         if not self.orb.a is None:
             self.orb.a = self.orb.a*factor
             self.soi = self.orb.a * (self.mu/self.orb.prim.mu)**(2/5)
     
     def resize(self, factor):
+        """Mutliplies the radius and gravity param of a body by a given factor.
+        """
         surfGrav = self.mu/self.eqr**2
         
         self.eqr = self.eqr*factor

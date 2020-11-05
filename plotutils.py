@@ -808,3 +808,17 @@ def set_trajectory_plot_layout(fig, lim, cameraDist=None, uirev=None):
             uirevision = uirev
             )
         )
+
+def blank_plot():
+    # fig = go.Figure()
+    fig = go.Figure(layout =dict(
+                        xaxis = dict(visible=False),
+                        yaxis = dict(visible=False)
+                        )
+                    )
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=15, b=30),
+        paper_bgcolor="rgb(30, 30, 30)",
+        plot_bgcolor="rgb(30, 30, 30)",
+        )
+    return fig

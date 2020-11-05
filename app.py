@@ -27,11 +27,12 @@ DOWNLOAD_DIRECTORY = "/tmp/app_generated_files"
 if not os.path.exists(DOWNLOAD_DIRECTORY):
     os.makedirs(DOWNLOAD_DIRECTORY)
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+# external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 server = Flask(__name__)
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets,
-                server=server)
+# app = dash.Dash(__name__, external_stylesheets=external_stylesheets,
+#                 server=server)
+app = dash.Dash(__name__, server=server)
 
 app.title='KSP Transfer Illustrator'
 
@@ -62,13 +63,14 @@ def serve_static(path):
 
 #%% app layout
 
-app.layout = html.Div(className='row', children=[
+app.layout = html.Div(id='kspti-body', children=[
+  html.Div(className='row', children=[
     html.Div(className='four columns', children=[
-        dcc.Tabs(id='tabs', value='params', children=[
+        dcc.Tabs(id='kspti-control-tabs', className='control-tabs', value='params', children=[
             dcc.Tab(
                 label='Instructions',
                 value='instruct',
-                children = html.Div(className='ctrl-tab', children = [
+                children = html.Div(className='control-tab', children = [
                     html.H3('KSP Transfer Illustrator'),
                     dcc.Markdown('''
                                  The KSP Transer Illustrator app calculates 
@@ -178,10 +180,10 @@ app.layout = html.Div(className='row', children=[
                                  suggestions you have at the KSP Forum thread 
                                  for this project or its GitHub repository:
                                  '''),
-                    html.A(html.Button('KSP Forum Thread'),
+                    html.A(html.Button('KSP Forum Thread',className='control-button'),
                      href='https://forum.kerbalspaceprogram.com/index.php?/topic/195405-ksp-transfer-illustrator/'
                            ),
-                    html.A(html.Button('Github'),
+                    html.A(html.Button('Github',className='control-button'),
                      href='https://github.com/theastrogoth/KSP-Transfer-Illustrator/issues'
                            ),
                     ])
@@ -189,10 +191,10 @@ app.layout = html.Div(className='row', children=[
             dcc.Tab(
                 label='Mission Parameters',
                 value = 'params',
-                children = [
+                children = html.Div(className='control-tab', children = [
                     html.H3('Mission Parameters'),
                     html.Div(
-                        className='ctrl-name',
+                        className='control-name',
                         ),
                     html.Label('Date Format'),
                     dcc.RadioItems(
@@ -294,6 +296,7 @@ app.layout = html.Div(className='row', children=[
                     html.H3('Load Orbits from .sfs File'),
                     dcc.Upload(
                         id='persistenceFile-upload',
+                        className='control-upload',
                         children=html.Div([
                             'Drag and Drop or ',
                             html.A('Select Files')
@@ -315,16 +318,19 @@ app.layout = html.Div(className='row', children=[
                         id='persistenceVessels-dropdown',
                         ),
                     html.Button(children = 'Add Starting Orbit',
+                                className='control-button',
                                 id = 'addStartOrbit-button',
                                 n_clicks = 0
                         ),
                     html.Button(children = 'Add Ending Orbit',
+                                className='control-button',
                                 id = 'addEndOrbit-button',
                                 n_clicks = 0
                         ),
                     html.H3('Load System from .ini File'),
                     dcc.Upload(
                         id='systemFile-upload',
+                        className='control-upload',
                         children=html.Div([
                             'Drag and Drop or ',
                             html.A('Select Files')
@@ -341,11 +347,11 @@ app.layout = html.Div(className='row', children=[
                             },
                         multiple=False
                         ),
-                    ]),
+                    ])),
                 dcc.Tab(
                     label='Advanced Settings',
                     value = 'adv', 
-                    children = [
+                    children = html.Div(className='control-tab', children = [
                         html.H3('Departure Time and Flight Duration'),
                         html.Label('Earliest Departure Year'),
                         dcc.Input(id = 'earlyStartYear2-input', value=1,
@@ -445,7 +451,7 @@ app.layout = html.Div(className='row', children=[
                                   type='number',
                                   value = 1,
                                   min = 0),
-                        ])
+                        ])),
             ]),
         ]),
     html.Div(className='four columns', children = [
@@ -463,27 +469,23 @@ app.layout = html.Div(className='row', children=[
                     id = 'porkchop-button',
                     n_clicks = 0
             ),
-        html.Div([
+        html.Div(children=[
             dcc.Loading(id='porkchop-loading',children=[
                 dcc.Graph(
                     id='porkchop-graph',
-                    figure = go.Figure(layout = dict(
-                                        xaxis = dict(visible=False),
-                                        yaxis = dict(visible=False))),
+                    figure = blank_plot(),
                     clickData = None
                     ),
-                html.Div(id='porkchop-div', style={'display': 'none'}),
-                html.Div(id='transfer-div', style={'display': 'none'}),
                 ]),
             ]),
         html.Div([
-            html.H3('Selected Transfer Details'),
             html.Div(id='failedConvergenceWarning-div',
                      style={'display': 'none'},
                      children=[
                          dcc.Markdown(id = 'failedConvergence-markdown')]),
             html.Div(id='transferDetails-div', style={'display': 'none'},
                      children=[
+                         html.H3('Selected Transfer Details'),
                          dcc.Markdown(id = 'departure-markdown'),
                          dcc.Markdown(id = 'arrival-markdown'),
                          dcc.Markdown(id = 'flightTime-markdown'),
@@ -537,14 +539,12 @@ app.layout = html.Div(className='row', children=[
                 ],
             labelStyle={'display': 'inline-block'},
             ),
-        html.Div([
+        html.Div(children=[
         dcc.Loading(id='transfer-loading', type='circle', children=[
             dcc.Markdown('**Transfer Trajectory**'),
             dcc.Graph(
                 id='transfer-graph',
-                figure = go.Figure(layout = dict(
-                                    xaxis = dict(visible=False),
-                                    yaxis = dict(visible=False))),
+                figure = blank_plot(),
                 ),
                 ]),
             dcc.Slider(
@@ -557,7 +557,7 @@ app.layout = html.Div(className='row', children=[
                 included=False,
                 updatemode='mouseup'
                 ),
-            html.A(children=html.Button('Download'),
+            html.A(children=html.Button('Download', className='control-button'),
                    id='transferPlot-download',
                    download="TransferPlot.html", href="",
                    target="_blank"),
@@ -567,9 +567,7 @@ app.layout = html.Div(className='row', children=[
             dcc.Markdown('**Ejection Trajectory**'),
             dcc.Graph(
                 id='ejection-graph',
-                figure = go.Figure(layout = dict(
-                                    xaxis = dict(visible=False),
-                                    yaxis = dict(visible=False))),
+                figure = blank_plot(),
                 ),
                 ]),
             dcc.Slider(
@@ -582,7 +580,7 @@ app.layout = html.Div(className='row', children=[
                 included=False,
                 updatemode='mouseup'
                 ),
-            html.A(children=html.Button('Download'),
+            html.A(children=html.Button('Download', className='control-button'),
                    id='ejectionPlot-download',
                    download="EjectionPlot.html", href="",
                    target="_blank"),
@@ -592,9 +590,7 @@ app.layout = html.Div(className='row', children=[
             dcc.Markdown('**Insertion Trajectory**'),
             dcc.Graph(
                 id='insertion-graph',
-                figure = go.Figure(layout =dict(
-                                    xaxis = dict(visible=False),
-                                    yaxis = dict(visible=False))),
+                figure = blank_plot(),
                 ),
                 ]),
             dcc.Slider(
@@ -607,7 +603,7 @@ app.layout = html.Div(className='row', children=[
                 included=False,
                 updatemode='mouseup'
                 ),
-            html.A(children=html.Button('Download'),
+            html.A(children=html.Button('Download',className='control-button'),
                    id='insertionPlot-download',
                    download="InsertionPlot.html", href="",
                    target="_blank"),
@@ -630,8 +626,10 @@ app.layout = html.Div(className='row', children=[
              children = [700000]),
     html.Div(id='enda-div', style={'display': 'none'},
              children = [420000]),
+    html.Div(id='porkchop-div', style={'display': 'none'}),
+    html.Div(id='transfer-div', style={'display': 'none'}),
     ])
-
+  ])
 #%% callbacks
 @app.callback(
      Output('dateFormat-div', 'children'),
@@ -1193,12 +1191,24 @@ def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, displayType,
                             start = (logLvls[0]-0.99),
                             end = (logLvls[-1]),
                             size = 1),
-                        colorscale = 'Jet',
+                        # colorscale=[[0, "rgb(60,100,225)"],
+                        #             [0.2, "rgb(115,255,243)"],
+                        #             [0.4, "rgb(110,255,129)"],
+                        #             [0.6, "rgb(243,255,140)"],
+                        #             [0.8, "rgb(255,183,115)"],
+                        #             [1, "rgb(250,85,85)"]],
+                        colorscale = 'deep',
                         colorbar = dict(
                             tickvals = colorVals,
                             ticktext = colorLabels,
-                            title='Δv (m/s)',),
-                        contours_coloring='heatmap',
+                            title=dict(
+                                text='Δv (m/s)',
+                                font=dict(
+                                    color="rgb(200, 200, 200)")
+                                ),
+                            tickcolor="rgb(200, 200, 200)",
+                            tickfont=dict(color="rgb(200, 200, 200)")),
+                        # contours_coloring='heatmap',
                         customdata = bs**logdV,
                         hovertemplate = "Δv = " +
                                         "%{customdata:.2f}" +
@@ -1206,15 +1216,21 @@ def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, displayType,
                                         "<extra></extra>"
                         ))
     fig.update_xaxes(title_text='Transfer start (day #)',
-                     visible = True)
+                     visible = True,
+                     color = "rgb(200, 200, 200)")
     fig.update_yaxes(title_text='Transfer duration (days)',
-                     visible = True)
+                     visible = True,
+                     color = "rgb(200, 200, 200)")
+    
     fig.update_layout(
         margin=dict(l=0, r=0, t=10, b=30),
+        paper_bgcolor="rgb(30, 30, 30)",
+        plot_bgcolor="rgb(30, 30, 30)",
         )
     add_marker(fig,
               chosenTransfer.startTime/(day*3600),
-              chosenTransfer.flightTime/(day*3600)
+              chosenTransfer.flightTime/(day*3600),
+              color = 'black'
               )
     return fig
 
