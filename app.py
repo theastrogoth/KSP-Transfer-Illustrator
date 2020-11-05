@@ -456,6 +456,7 @@ app.layout = html.Div(id='kspti-body', children=[
         ]),
     html.Div(className='four columns', children = [
         html.H3('Porkchop Plot'),
+        html.Label('Display Type'),
         dcc.Dropdown(
                         id = 'porkchopDisplay-dropdown',
                         options=[{'label': 'Total Δv', 'value': 'total'},
@@ -539,7 +540,7 @@ app.layout = html.Div(id='kspti-body', children=[
                 ],
             labelStyle={'display': 'inline-block'},
             ),
-        html.Div(children=[
+        html.Div(id='transfer-plot-div', style={'display': 'none'}, children=[
         dcc.Loading(id='transfer-loading', type='circle', children=[
             dcc.Markdown('**Transfer Trajectory**'),
             dcc.Graph(
@@ -562,7 +563,7 @@ app.layout = html.Div(id='kspti-body', children=[
                    download="TransferPlot.html", href="",
                    target="_blank"),
             ]),
-        html.Div(id='ejection-div', style={'display': 'none'}, children=[
+        html.Div(id='ejection-plot-div', style={'display': 'none'}, children=[
         dcc.Loading(id='ejection-loading', type='circle', children=[
             dcc.Markdown('**Ejection Trajectory**'),
             dcc.Graph(
@@ -585,7 +586,7 @@ app.layout = html.Div(id='kspti-body', children=[
                    download="EjectionPlot.html", href="",
                    target="_blank"),
             ]),
-        html.Div(id='insertion-div', style={'display': 'none'}, children=[
+        html.Div(id='insertion-plot-div', style={'display': 'none'}, children=[
         dcc.Loading(id='insertion-loading', type='circle', children=[
             dcc.Markdown('**Insertion Trajectory**'),
             dcc.Graph(
@@ -628,6 +629,8 @@ app.layout = html.Div(id='kspti-body', children=[
              children = [420000]),
     html.Div(id='porkchop-div', style={'display': 'none'}),
     html.Div(id='transfer-div', style={'display': 'none'}),
+    html.Div(id='depart-times-div', style={'display': 'none'}),
+    html.Div(id='flight-times-div', style={'display': 'none'}),
     ])
   ])
 #%% callbacks
@@ -872,10 +875,76 @@ def update_early_start_day(early_start_day2, prev_state):
         return early_start_day2
 
 @app.callback(
+    [Output('depart-times-div','children'),
+     Output('flight-times-div','children')],
+    [Input('porkchop-button','n_clicks'),
+     Input('porkchop-graph','relayoutData')],
+    [State('dateFormat-div','children'),
+     State('earlyStartYear-input','value'),
+     State('earlyStartDay-input','value'),
+     State('lateStartYear-input','value'),
+     State('lateStartDay-input','value'),
+     State('shortFlightDays-input','value'),
+     State('longFlightDays-input','value')],
+    )
+def update_flight_time_bounds(nClicks, relayout, dateFormat,
+                              minStartYear, minStartDay,
+                              maxStartYear, maxStartDay,
+                              minFlightDays, maxFlightDays):
+    
+    # don't update on page load
+    if nClicks == 0:
+        return dash.no_update, dash.no_update
+    
+    # grab day and year formats
+    day = dateFormat['day']         # hours per day
+    year= dateFormat['year']        # days per year
+    
+    ctx = dash.callback_context
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'porkchop-graph':
+        minStartTime = relayout['xaxis.range[0]']*3600*day
+        maxStartTime = relayout['xaxis.range[1]']*3600*day
+        minFlightTime = relayout['yaxis.range[0]']*3600*day
+        maxFlightTime = relayout['yaxis.range[1]']*3600*day
+    
+    else:
+        if not (minStartYear is None or minStartYear < 0):
+            if (minStartDay is None or minStartDay < 0):
+                minStartDay = 0
+            minStartTime = 3600*((minStartDay-1) * day +                        \
+                        (minStartYear-1) * day * year);
+        else:
+            minStartYear = 0
+            minStartDay = 0
+            minStartTime = 0
+        if not (maxStartYear is None or maxStartYear < minStartYear):
+            if (maxStartDay is None or maxStartDay < 0):
+                maxStartDay = year
+            maxStartTime = 3600*((maxStartDay-1) * day +                        \
+                        (maxStartYear-1) * day * year);
+            if maxStartTime < minStartTime:
+                maxStartTime = None
+        else:
+            maxStartTime = None
+        if not (minFlightDays is None or minFlightDays <= 0):
+            minFlightTime = 3600*(minFlightDays * day)
+        else:
+            minFlightTime = None
+        if not (maxFlightDays is None or maxFlightDays <= 0):
+            maxFlightTime = 3600*(maxFlightDays* day)
+            if not minFlightTime is None:
+                if maxFlightTime < minFlightTime:
+                    maxFlightTime = None
+        else:
+            maxFlightTime = None
+        
+    return [minStartTime, maxStartTime], [minFlightTime, maxFlightTime]
+
+@app.callback(
      Output('porkchop-div','children'),
-    [Input('porkchop-button','n_clicks')],
+    [Input('depart-times-div','children'),
+     Input('flight-times-div','children')],
     [State('system-div','children'),
-     State('dateFormat-div','children'),
      State('trType-dropdown','value'),
      State('cheapStartOrbit-checklist','value'),
      State('cheapEndOrbit-checklist','value'),
@@ -896,28 +965,21 @@ def update_early_start_day(early_start_day2, prev_state):
      State('endlan-input','value'),
      State('endmo-input','value'),
      State('endepoch-input','value'),
-     State('earlyStartYear-input','value'),
-     State('earlyStartDay-input','value'),
-     State('lateStartYear-input','value'),
-     State('lateStartDay-input','value'),
-     State('shortFlightDays-input','value'),
-     State('longFlightDays-input','value'),
      State('numPointsSampled-input','value')]
     )
-def update_porkchop_data(nClicks, system, dateFormat,
-                          transferType,
-                          cheapStartOrb, cheapEndOrb, noInsertion,
-                          startBodyName, startA, startEcc, startInc,
-                          startArgP, startLAN, startMo, startEpoch,
-                          endBodyName, endA, endEcc, endInc,
-                          endArgP, endLAN, endMo, endEpoch,
-                          minStartYear, minStartDay, maxStartYear, maxStartDay,
-                          minFlightDays, maxFlightDays, numPointsSampled):
+def update_porkchop_data(startTimeRange, flightTimeRange,
+                         system, transferType,
+                         cheapStartOrb, cheapEndOrb, noInsertion,
+                         startBodyName, startA, startEcc, startInc,
+                         startArgP, startLAN, startMo, startEpoch,
+                         endBodyName, endA, endEcc, endInc,
+                         endArgP, endLAN, endMo, endEpoch,
+                         numPointsSampled):
     
     # return empty plot on page load
-    if nClicks == 0:
+    ctx = dash.callback_context
+    if not ctx.triggered:
         return dash.no_update
-    
     
     # prepare system information, start & and bodies
     system = jsonpickle.decode(system)
@@ -959,40 +1021,6 @@ def update_porkchop_data(nClicks, system, dateFormat,
                  startLAN*math.pi/180, startMo, startEpoch, sBody)
     eOrb = Orbit(endA, endEcc, endInc*math.pi/180, endArgP*math.pi/180,
                  endLAN*math.pi/180, endMo, endEpoch, eBody)
-    # grab day and year formats
-    day = dateFormat['day']         # hours per day
-    year= dateFormat['year']        # days per year
-    
-    # prepare start and flight time bounds
-    if not (minStartYear is None or minStartYear < 0):
-        if (minStartDay is None or minStartDay < 0):
-            minStartDay = 0
-        minStartTime = 3600*((minStartDay-1) * day +                        \
-                    (minStartYear-1) * day * year);
-    else:
-        minStartYear = 0
-        minStartDay = 0
-        minStartTime = 0
-    if not (maxStartYear is None or maxStartYear < minStartYear):
-        if (maxStartDay is None or maxStartDay < 0):
-            maxStartDay = year
-        maxStartTime = 3600*((maxStartDay-1) * day +                        \
-                    (maxStartYear-1) * day * year);
-        if maxStartTime < minStartTime:
-            maxStartTime = None
-    else:
-        maxStartTime = None
-    if not (minFlightDays is None or minFlightDays <= 0):
-        minFlightTime = 3600*(minFlightDays * day)
-    else:
-        minFlightTime = None
-    if not (maxFlightDays is None or maxFlightDays <= 0):
-        maxFlightTime = 3600*(maxFlightDays* day)
-        if not minFlightTime is None:
-            if maxFlightTime < minFlightTime:
-                maxFlightTime = None
-    else:
-        maxFlightTime = None
     
     # change orbit options from strings to bools
     if not cheapStartOrb:
@@ -1013,7 +1041,13 @@ def update_porkchop_data(nClicks, system, dateFormat,
         numPointsSampled = 25
     elif numPointsSampled <2:
         numPointsSampled = 2
-        
+    
+    # set time bounds
+    minStartTime = startTimeRange[0]
+    maxStartTime = startTimeRange[1]
+    minFlightTime = flightTimeRange[0]
+    maxFlightTime = flightTimeRange[1]
+    
     # prepare porkchop table
     porkTable = PorkchopTable(sOrb, eOrb, transferType, noInsertion,
                               cheapStartOrb, cheapEndOrb,
@@ -1424,6 +1458,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
 
 @app.callback(
     [Output('transfer-graph', 'figure'),
+     Output('transfer-plot-div','style'),
      Output('transferPlot-download', 'href')],
     [Input('transfer-div', 'children'),
      Input('transfer-slider', 'value'),
@@ -1537,11 +1572,12 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
     
     fig.write_html(path)
     
-    return {'data':fig.data,'layout':fig.layout}, location
+    return {'data':fig.data,'layout':fig.layout}, dict(display = 'block'),  \
+           location
 
 @app.callback(
     [Output('ejection-graph', 'figure'),
-     Output('ejection-div', 'style'),
+     Output('ejection-plot-div', 'style'),
      Output('ejectionPlot-download','href')],
     [Input('transfer-div', 'children'),
      Input('ejection-slider', 'value'),
@@ -1616,7 +1652,7 @@ def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
 
 @app.callback(
     [Output('insertion-graph', 'figure'),
-     Output('insertion-div', 'style'),
+     Output('insertion-plot-div', 'style'),
      Output('insertionPlot-download', 'href')],
     [Input('transfer-div', 'children'),
      Input('insertion-slider', 'value'),
