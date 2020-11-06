@@ -64,6 +64,51 @@ def serve_static(path):
 #%% app layout
 
 app.layout = html.Div(id='kspti-body', children=[
+  html.Div(id='header', className='row', style={'background-image': 'linear-gradient(#003236, #1E1E1E)'}, children=[
+      html.Div(className='six columns', children =[
+          html.H1("   KSP Transfer Illustrator",
+                  style={"white-space": "pre",
+                         'float' : 'left',
+                         'position' : 'relative',
+                         'padding-top' : 50,
+                         'padding-right' : 25
+                    }),
+          ]),
+      html.Div(className='two columns', children = [
+          html.A([
+            html.Img(
+                src=app.get_asset_url("KSP forum logo.png"),
+                style={
+                    'float' : 'right',
+                    'position' : 'relative',
+                    'padding-top' : 50,
+                    'padding-right' : 0
+                })
+            ], href='https://forum.kerbalspaceprogram.com/index.php?/topic/195405-web-ksp-transfer-illustrator/')
+          ]),
+      html.Div(className='two columns', children = [
+          html.A([
+            html.Img(
+                src=app.get_asset_url("Github logo.png"),
+                style={
+                    'float' : 'right',
+                    'position' : 'relative',
+                    'padding-top' : 25,
+                    'padding-right' : 100
+                })
+            ], href='https://github.com/theastrogoth/KSP-Transfer-Illustrator')
+          ]),
+      html.Div(className='two columns', children =[
+          html.Img(
+              src=app.get_asset_url("logo.png"),
+              style={
+                    'float' : 'left',
+                    'position' : 'relative',
+                    'padding-top' : 0,
+                    'padding-right' : 25
+                })
+          ]),
+      ]),
   html.Div(className='row', children=[
     html.Div(className='four columns', children=[
         dcc.Tabs(id='kspti-control-tabs', className='control-tabs', value='basic', children=[
