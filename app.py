@@ -309,7 +309,7 @@ app.layout = html.Div(id='kspti-body', children=[
                                 html.Div(className='five columns',children=[
                                     dcc.Markdown('**Orbit parameters**',
                                                  style={'padding-top' : 10}),
-                                    html.Label('Refernce Body'),
+                                    html.Label('Reference Body'),
                                     dcc.Dropdown(
                                         id = 'bodyPrim-dropdown',
                                         value = None,
@@ -908,16 +908,19 @@ def add_edit_system(iniFile, nClicks, allSystems, radioOptions,
         return allSystems, 'custom', location
     
     if ctx.triggered[0]['prop_id'].split('.')[0] == 'body-button':
-        if nClicks==9:
+        if nClicks==0:
             return dash.no_update
         system = jsonpickle.decode(system)
+        existingRefs = [bd.ref for bd in system]
+        if ref in existingRefs:
+            ref = int(np.amax(existingRefs) + 1)
         removeID = None
         for ii, bd in enumerate(system):
             if bd.name == name:
                 removeID = ii
         if not removeID is None:
-            del system[removeID]
-        prim = [bd for bd in system if bd.orb.prim.name==primName][0]
+            del(system[removeID])
+        prim = [bd for bd in system if bd.name==primName][0]
         if primName == name:
             newBody = Body(name, eqr, mu, None, 
                            None,
@@ -925,11 +928,17 @@ def add_edit_system(iniFile, nClicks, allSystems, radioOptions,
                            )
         else:
             newBody = Body(name, eqr, mu, None, 
-                           Orbit(a, ecc, inc, argp, lan, mo, epoch, prim),
+                           Orbit(a, ecc, inc*math.pi/180, argp*math.pi/180,
+                                 lan*math.pi/180, mo, epoch, prim),
                            ref, None, (red,green,blue)
                            )
         system.append(newBody)
+        print([sat.name for sat in system[0].satellites])
         system = sort_system(system)
+        print([sat.name for sat in system[0].satellites])
+        print(prim)
+        print(newBody.orb.prim)
+        print(system[0])
         allSystems[3] = jsonpickle.encode(system)
         
          # create downloadable .ini file bodies in system

@@ -80,9 +80,15 @@ def dict_to_body(body_dict, system_list):
         prim = [bd for bd in system_list if bd.name == primName][0]
         orb = Orbit(a, ecc, inc, argp, lan, mo, epoch, prim)
     
+    try:
+        colorStr = body_dict['color']
+        color = eval(colorStr)
+    except:
+        color = (255, 255, 255)
+    
     ref = int(body_dict['id'])
     
-    return Body(name, eqr, mu, None, orb, ref)
+    return Body(name, eqr, mu, None, orb, ref, None, color)
 
 def dicts_to_system(system_dicts):
     system = []
@@ -109,6 +115,7 @@ def sort_system(unsortedSystem):
     sortedSystem = []
     for bd in unsortedSystem:
         bd.sort_satellites()
+        print([sat.name for sat in bd.satellites])
     
     try:
         sun = [bd for bd in unsortedSystem if bd.name == 'Sun'][0]
@@ -141,6 +148,8 @@ def system_to_ini(system, path=None):
             f.write('radius = ' + str(bd.eqr / 1000) + '\n')
             f.write('parent = \n')
             f.write('parentID = -1\n')
+            f.write('name = ' + bd.name + '\n')
+            f.write('id = ' + str(bd.ref) + '\n')
         else:
             f.write('epoch = ' + str(bd.orb.epoch)+'\n')
             f.write('sma = ' + str(bd.orb.a / 1000)+'\n')
@@ -151,8 +160,10 @@ def system_to_ini(system, path=None):
             f.write('mean = ' + str(bd.orb.mo *180/pi)+'\n')
             f.write('gm = ' + str(bd.mu / 1E9) + '\n')
             f.write('radius = ' + str(bd.eqr / 1000) + '\n')
-            f.write('parent = \n')
-            f.write('parentID = -1\n')
+            f.write('parent = ' + bd.orb.prim.name + '\n')
+            f.write('parentID = ' + str(bd.orb.prim.ref) + '\n' )
+            f.write('name = ' + bd.name + '\n')
+            f.write('id = ' + str(bd.ref) + '\n')
         
         f.write('color = ' + str(bd.color) + '\n')
         f.write('\n')
@@ -162,9 +173,23 @@ def system_to_ini(system, path=None):
     return
 
 import jsonpickle
+from copy import deepcopy
 
 infile = open('kerbol_system.json','r')
-kerbol_system = jsonpickle.decode(infile.read())
+system = jsonpickle.decode(infile.read())
 infile.close
 
-system_to_ini(kerbol_system)
+orb = deepcopy(system[4].orb)
+orb.prim = system[4].orb.prim
+newBody = Body('Test', 
+               system[4].eqr,
+               system[4].mu,
+               None,
+               orb,
+               111,
+               None,
+               (200,200,200))
+newBody.orb.mo = 0
+
+system.append(newBody)
+system = sort_system(system)

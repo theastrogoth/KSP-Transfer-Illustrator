@@ -64,19 +64,29 @@ class Body:
         sats = self.satellites
         SMAs = [sat.orb.a for sat in sats]
         idxs = np.argsort(SMAs)
-        newSats = []
+        newSatNames = []
+        newSMAs = []
         for idx in idxs:
-            newSats.append(sats[idx])
+            newSatNames.append(sats[idx].name)
+            newSMAs.append(SMAs[idx])
         
         # use name as tiebreaker
-        for ii, a in enumerate(SMAs):
-            duplicates = [jj for jj, sma in enumerate(SMAs) if sma==a]
+        ii = 0
+        while ii < len(newSatNames):
+            a = newSMAs[ii]
+            duplicates = [jj for jj, sma in enumerate(newSMAs) if sma==a]
             if len(duplicates) > 1:
-                sats = deepcopy(newSats)
-                names = [newSats[jj].name for jj in duplicates]
+                names = [newSatNames[jj] for jj in duplicates]
                 metaIdxs = np.argsort(names)
                 for kk, metaIdx in enumerate(metaIdxs):
-                    newSats[duplicates[kk]] = sats[metaIdx]
+                    newSatNames[ii+kk] = names[metaIdx]
+            ii = ii+len(duplicates)
+        
+        newSats = []
+        for name in newSatNames:
+            sat = [bd for bd in sats if bd.name==name][0]
+            newSats.append(sat)
+        
         
         self.satellites = newSats
         return
