@@ -555,6 +555,11 @@ app.layout = html.Div(id='kspti-body', children=[
                     figure = blank_plot(),
                     clickData = None
                     ),
+                # Hidden divs under loading for porkchop generation
+                html.Div(id='porkchop-div', style={'display': 'none'}),
+                html.Div(id='transfer-div', style={'display': 'none'}),
+                html.Div(id='depart-times-div', style={'display': 'none'}),
+                html.Div(id='flight-times-div', style={'display': 'none'}),
                 ]),
             ]),
         html.Div([
@@ -705,10 +710,6 @@ app.layout = html.Div(id='kspti-body', children=[
              children = [700000]),
     html.Div(id='enda-div', style={'display': 'none'},
              children = [420000]),
-    html.Div(id='porkchop-div', style={'display': 'none'}),
-    html.Div(id='transfer-div', style={'display': 'none'}),
-    html.Div(id='depart-times-div', style={'display': 'none'}),
-    html.Div(id='flight-times-div', style={'display': 'none'}),
     ])
   ])
 #%% callbacks
