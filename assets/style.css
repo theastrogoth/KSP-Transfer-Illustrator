@@ -26,22 +26,22 @@ body {
     display: none;
 }
 
-#kspti-control-tabs, #kspti-control-tabs .tab {
+#kspti-body, #kspti-body .tab {
     background-color: #1E1E1E !important;
 }
 #kspti-body .control-tab {
     background-color: #1E1E1E !important;
 }
-#kspti-control-tabs .tab {
+#kspti-body .tab {
     background-color: #1E1E1E;
     color: #E4E4E4;
     border-color: #727272 !important;
 }
-#kspti-control-tabs .tab--selected {
+#kspti-body .tab--selected {
     color: #33C3F0 !important;
     border-top-color: initial !important;
 }
-#kspti-control-tabs .Select-control {
+#kspti-body .Select-control {
     border: solid 1px #727272;
     background-color: #1E1E1E !important;
 }

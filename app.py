@@ -9,7 +9,7 @@ from dash.dependencies import Input, Output, State
 import plotly.graph_objects as go
 from plotutils import *
 from sfsutils import parse_savefile
-from iniutils import ini_to_system
+from iniutils import ini_to_system, sort_system, system_to_ini
 from base64 import b64decode
 
 import jsonpickle
@@ -47,6 +47,13 @@ infile = open('sol_system.json','r')
 sol_system = jsonpickle.decode(infile.read())
 infile.close
 
+#%% generate initial .ini file
+filename = 'ksptiBodies.ini'
+inipath = os.path.join(DOWNLOAD_DIRECTORY, filename)
+inilocation = "/download/{}".format(urlquote(filename))
+
+system_to_ini([kerbol_system[0]], inipath)
+
 #%%
 
 def name_options(objectList):
@@ -79,7 +86,7 @@ app.layout = html.Div(id='kspti-body', children=[
             html.Img(
                 src=app.get_asset_url("KSP forum logo.png"),
                 style={
-                    'float' : 'right',
+                    'float' : 'left',
                     'position' : 'relative',
                     'padding-top' : 50,
                     'padding-right' : 0
@@ -91,7 +98,7 @@ app.layout = html.Div(id='kspti-body', children=[
             html.Img(
                 src=app.get_asset_url("Github logo.png"),
                 style={
-                    'float' : 'right',
+                    'float' : 'left',
                     'position' : 'relative',
                     'padding-top' : 25,
                     'padding-right' : 100
@@ -199,53 +206,164 @@ app.layout = html.Div(id='kspti-body', children=[
                 label='System Settings',
                 value='system',
                 children = html.Div(className='control-tab', children = [
-                    html.H3('System Options'),
-                    dcc.RadioItems(
-                        id = 'system-radio',
-                        options=[
-                            {'label': 'Kerbol (Stock)', 'value': 'stock'},
-                            {'label': 'Kerbol (Outer Planets Mod)', 'value': 'opm'},
-                            {'label': 'Sol (Real Solar System)', 'value': 'rss'},
-                            {'label': 'Uploaded System', 'value': 'upload'}],
-                        value='stock',
-                        ),
-                    html.H3('System Resizing/Rescaling'),
-                    html.Label('System Resize Factor'),
-                    dcc.Input(id = 'systemResize-input',  
-                              type='number',
-                              value = 1,
-                              min = 0),
-                    html.Label('System Rescale Factor'),
-                    dcc.Input(id = 'systemRescale-input',
-                              type='number',
-                              value = 1,
-                              min = 0),
-                    html.Label('Day Length Multiplier'),
-                    dcc.Input(id='systemDayScale-input',
-                              type='number',
-                              value = 1,
-                              min = 0),
-                    html.H3('Load System from .ini File'),
-                    dcc.Upload(
-                        id='systemFile-upload',
-                        className='control-upload',
-                        children=html.Div([
-                            'Drag and Drop or ',
-                            html.A('Select Files')
+                    dcc.Tabs(id='system-tabs', className='control-tabs', value='basic', children=[
+                      dcc.Tab(
+                        label='Basic Settings',
+                        value='basic',
+                        children = html.Div(className='control-tab', children = [
+                            html.H3('System Options'),
+                            dcc.RadioItems(
+                                id = 'system-radio',
+                                options=[
+                                    {'label': 'Kerbol (Stock)', 'value': 'stock'},
+                                    {'label': 'Kerbol (Outer Planets Mod)', 'value': 'opm'},
+                                    {'label': 'Sol (Real Solar System)', 'value': 'rss'},
+                                    {'label': 'Uploaded/Custom System', 'value': 'custom'}],
+                                value='stock',
+                                ),
+                            html.H3('System Resizing/Rescaling'),
+                            html.Label('System Resize Factor'),
+                            dcc.Input(id = 'systemResize-input',  
+                                      type='number',
+                                      value = 1,
+                                      min = 0),
+                            html.Label('System Rescale Factor'),
+                            dcc.Input(id = 'systemRescale-input',
+                                      type='number',
+                                      value = 1,
+                                      min = 0),
+                            html.Label('Day Length Multiplier'),
+                            dcc.Input(id='systemDayScale-input',
+                                      type='number',
+                                      value = 1,
+                                      min = 0),
+                            html.H3('Load System from .ini File'),
+                            dcc.Upload(
+                                id='systemFile-upload',
+                                className='control-upload',
+                                children=html.Div([
+                                    'Drag and Drop or ',
+                                    html.A('Select Files')
+                                ]),
+                                style={
+                                    'width': '100%',
+                                    'height': '60px',
+                                    'lineHeight': '60px',
+                                    'borderWidth': '1px',
+                                    'borderStyle': 'dashed',
+                                    'borderRadius': '5px',
+                                    'textAlign': 'center',
+                                    'margin': '10px'
+                                    },
+                                multiple=False
+                                ),
+                            ])),
+                      dcc.Tab(
+                        label='Advanced Settings',
+                        value='adv',
+                        children=html.Div(
+                            className='control-tab', 
+                            children= [
+                              html.H3('Add/Edit Body'),
+                              html.Label('Body Name'),
+                              dcc.Input(id = 'bodyName-input',
+                                        type='text'),
+                              html.Div(className='row', children=[
+                                html.Div(className='five columns',children=[
+                                    dcc.Markdown('**Body parameters**',
+                                                 style={'padding-top' : 10}),
+                                    html.Label('Equatorial Radius (m)'),
+                                    dcc.Input(id = 'bodyeqr-input',  
+                                              type='number',
+                                              value = None),
+                                    html.Label('Gravity Parameter (m3/s2)'),
+                                    dcc.Input(id = 'bodymu-input',  
+                                              type='number',
+                                              value = None),
+                                    html.Label('Reference ID'),
+                                    dcc.Input(id = 'bodyRef-input',  
+                                              type='number',
+                                              step=1,
+                                              value = None),
+                                    dcc.Markdown('**Color (RGB)**',
+                                                 style={'padding-top' : 10}),
+                                    dcc.Input(id='bodyRed-input',
+                                              type='number',
+                                              placeholder='Red (0-255)',
+                                              min=0,
+                                              max=255,
+                                              value=None),
+                                     dcc.Input(id='bodyGreen-input',
+                                              type='number',
+                                              placeholder='Green (0-255)',
+                                              min=0,
+                                              max=255,
+                                              value=None),
+                                     dcc.Input(id='bodyBlue-input',
+                                              type='number',
+                                              placeholder='Blue (0-255)',
+                                              min=0,
+                                              max=255,
+                                              value=None),
+                                    ]),
+                                html.Div(className='five columns',children=[
+                                    dcc.Markdown('**Orbit parameters**',
+                                                 style={'padding-top' : 10}),
+                                    html.Label('Refernce Body'),
+                                    dcc.Dropdown(
+                                        id = 'bodyPrim-dropdown',
+                                        value = None,
+                                        options = name_options(kerbol_system)
+                                        ),
+                                    html.Label('Semi-major axis (m)'),
+                                    dcc.Input(id = 'bodya-input',  
+                                              type='number',
+                                              value = None),
+                                    html.Label('Eccentricity'),
+                                    dcc.Input(id = 'bodyecc-input',  
+                                              type='number',
+                                              value = None),
+                                    html.Label('Inclination (°)'),
+                                    dcc.Input(id = 'bodyinc-input',  
+                                              type='number',
+                                              value = None),
+                                    html.Label('Argument of the Periapsis (°)'),
+                                    dcc.Input(id = 'bodyargp-input',  
+                                              type='number',
+                                              value = None),
+                                    html.Label('Longitude of the Ascending Node (°)'),
+                                    dcc.Input(id = 'bodylan-input',  
+                                              type='number',
+                                              value = None),
+                                    html.Label('Mean anomaly at epoch (radians)'),
+                                    dcc.Input(id = 'bodymo-input',  
+                                              type='number',
+                                              value = None),
+                                    html.Label('Epoch (s)'),
+                                    dcc.Input(id = 'bodyepoch-input',  
+                                              type='number',
+                                              value = None),
+                                    ]),
+                                  ]),
+                            html.Div(children=[
+                                html.Button(children = 'Add/Edit Body',
+                                            className = 'button-primary',
+                                            id = 'body-button',
+                                            n_clicks = 0
+                                        ),
+                                    ]),
+                            html.Div(style={'padding-top' : 20}, children = [
+                                html.A(children=html.Button('Download INI file',className='control-button'),
+                                       id='iniFile-download',
+                                       download="ksptiBodies.ini", href=inilocation,
+                                       target="_blank",
+                                           ),
+                                    ]),
+                                ]),
+                              ),
+                            ]),
                         ]),
-                        style={
-                            'width': '100%',
-                            'height': '60px',
-                            'lineHeight': '60px',
-                            'borderWidth': '1px',
-                            'borderStyle': 'dashed',
-                            'borderRadius': '5px',
-                            'textAlign': 'center',
-                            'margin': '10px'
-                            },
-                        multiple=False
-                        ),
-                    ])),
+                    ),
             dcc.Tab(
                 label='Time Settings',
                 value='time',
@@ -701,7 +819,7 @@ app.layout = html.Div(id='kspti-body', children=[
                  jsonpickle.encode(kerbol_system),
                  jsonpickle.encode(outer_planets_system),
                  jsonpickle.encode(sol_system),
-                 jsonpickle.encode(kerbol_system)]),
+                 jsonpickle.encode([kerbol_system[0]])]),
     html.Div(id='system-div', style={'display': 'none'}, 
              children=jsonpickle.encode(kerbol_system)),
     html.Div(id='persistenceVessels-div', style={'display': 'none'},
@@ -740,39 +858,106 @@ def set_date_format(selected_format, resizeFactor, rescaleFactor, dayFactor):
     return dict(day=day, year=year)
 
 @app.callback(
-    Output('allSystems-div','children'),
-    [Input('systemFile-upload','contents')],
+    [Output('allSystems-div','children'),
+     Output('system-radio','value'),
+     Output('iniFile-download','href')],
+    [Input('systemFile-upload','contents'),
+     Input('body-button', 'n_clicks')],
     [State('allSystems-div','children'),
-     State('system-radio','options')],
+     State('system-radio','options'),
+     State('bodyName-input','value'),
+     State('bodyeqr-input','value'),
+     State('bodymu-input','value'),
+     State('bodyRef-input','value'),
+     State('bodyRed-input','value'),
+     State('bodyGreen-input','value'),
+     State('bodyBlue-input','value'),
+     State('bodyPrim-dropdown','value'),
+     State('bodya-input','value'),
+     State('bodyecc-input','value'),
+     State('bodyinc-input','value'),
+     State('bodyargp-input','value'),
+     State('bodylan-input','value'),
+     State('bodymo-input','value'),
+     State('bodyepoch-input','value'),
+     State('system-div','children')],
     prevent_initial_call = True
     )
-def add_system_from_ini(iniFile, allSystems, radioOptions):
-    if iniFile is None:
-        return dash.no_update, dash.no_update
+def add_edit_system(iniFile, nClicks, allSystems, radioOptions,
+                    name, eqr, mu, ref, red, green, blue,
+                    primName, a, ecc, inc, argp, lan, mo, epoch,
+                    system):
+    ctx = dash.callback_context
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'systemFile-upload':
+        if iniFile is None:
+            return dash.no_update, dash.no_update
+        
+        iniFile = iniFile.split(',')[1]
+        iniFile = b64decode(iniFile).decode('utf-8')
+        newSystem = ini_to_system(iniFile, False)
+        
+        allSystems[3] = jsonpickle.encode(newSystem)
+        
+        # create downloadable .ini file bodies in system
+        filename = 'ksptiBodies.ini'
+        path = os.path.join(DOWNLOAD_DIRECTORY, filename)
+        location = "/download/{}".format(urlquote(filename))
+        
+        system_to_ini(newSystem, path)
+        
+        return allSystems, 'custom', location
     
-    iniFile = iniFile.split(',')[1]
-    iniFile = b64decode(iniFile).decode('utf-8')
-    newSystem = ini_to_system(iniFile, False)
-    
-    allSystems[3] = jsonpickle.encode(newSystem)
-    
-    return allSystems
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'body-button':
+        if nClicks==9:
+            return dash.no_update
+        system = jsonpickle.decode(system)
+        removeID = None
+        for ii, bd in enumerate(system):
+            if bd.name == name:
+                removeID = ii
+        if not removeID is None:
+            del system[removeID]
+        prim = [bd for bd in system if bd.orb.prim.name==primName][0]
+        if primName == name:
+            newBody = Body(name, eqr, mu, None, 
+                           None,
+                           ref, None, (red,green,blue)
+                           )
+        else:
+            newBody = Body(name, eqr, mu, None, 
+                           Orbit(a, ecc, inc, argp, lan, mo, epoch, prim),
+                           ref, None, (red,green,blue)
+                           )
+        system.append(newBody)
+        system = sort_system(system)
+        allSystems[3] = jsonpickle.encode(system)
+        
+         # create downloadable .ini file bodies in system
+        filename = 'ksptiBodies.ini'
+        path = os.path.join(DOWNLOAD_DIRECTORY, filename)
+        location = "/download/{}".format(urlquote(filename))
+        
+        system_to_ini(system, path)
+        
+        return allSystems, 'custom', location
 
 @app.callback(
      Output('system-div', 'children'),
     [Input('system-radio','value'),
      Input('systemResize-input','value'),
      Input('systemRescale-input','value'),
-     Input('allSystems-div', 'children')]
+     Input('allSystems-div', 'children')],
     )
 def set_system(system_name, resizeFactor, rescaleFactor, all_systems):
+    
+    
     if system_name == 'stock':
         system = jsonpickle.decode(all_systems[0])
     elif system_name == 'opm':
         system = jsonpickle.decode(all_systems[1])
     elif system_name == 'rss':
         system = jsonpickle.decode(all_systems[2])
-    elif system_name == 'upload':
+    elif system_name == 'custom':
         system = jsonpickle.decode(all_systems[3])
     else:
         return dash.no_update
@@ -784,7 +969,65 @@ def set_system(system_name, resizeFactor, rescaleFactor, all_systems):
     return jsonpickle.encode(system)
 
 @app.callback(
-    Output('startingBody-dropdown', 'options'),
+    [Output('bodyeqr-input','value'),
+     Output('bodymu-input','value'),
+     Output('bodyRef-input','value'),
+     Output('bodyRed-input','value'),
+     Output('bodyGreen-input','value'),
+     Output('bodyBlue-input','value'),
+     Output('bodyPrim-dropdown','value'),
+     Output('bodyPrim-dropdown','options'),
+     Output('bodya-input','value'),
+     Output('bodyecc-input','value'),
+     Output('bodyinc-input','value'),
+     Output('bodyargp-input','value'),
+     Output('bodylan-input','value'),
+     Output('bodymo-input','value'),
+     Output('bodyepoch-input','value')],
+    [Input('bodyName-input','value'),
+     Input('system-div','children')]
+    )
+def set_edit_body_params(name, system):
+    system = jsonpickle.decode(system)
+    systemNames = [bd.name for bd in system]
+    if not name in systemNames:
+        return dash.no_update, dash.no_update, dash.no_update,              \
+               dash.no_update, dash.no_update, dash.no_update,              \
+               dash.no_update, name_options(system), dash.no_update,        \
+               dash.no_update, dash.no_update, dash.no_update,              \
+               dash.no_update, dash.no_update, dash.no_update
+    
+    matchedBody = [bd for bd in system if bd.name==name][0]
+    eqr = matchedBody.eqr
+    mu = matchedBody.mu
+    color = matchedBody.color
+    ref = matchedBody.ref
+    red = color[0]
+    green = color[1]
+    blue = color[2]
+    prim = matchedBody.orb.prim.name
+    if prim == name:
+        a = None
+        ecc = None
+        inc = None
+        argp = None
+        lan = None
+        mo = None
+        epoch = None
+    else:
+        a = matchedBody.orb.a
+        ecc = matchedBody.orb.ecc
+        inc = matchedBody.orb.inc * 180/math.pi
+        argp = matchedBody.orb.argp * 180/math.pi
+        lan = matchedBody.orb.lan * 180/math.pi
+        mo = matchedBody.orb.mo
+        epoch = matchedBody.orb.epoch
+    
+    return eqr, mu, ref, red, green, blue, prim, name_options(system),      \
+           a, ecc, inc, argp, lan, mo, epoch
+
+@app.callback(
+     Output('startingBody-dropdown', 'options'),
     [Input('system-div', 'children')]
     )
 def set_startBody_options(system_data):
@@ -795,7 +1038,7 @@ def set_startBody_options(system_data):
     return [{'label': i, 'value': i} for i in start_bodies]
 
 @app.callback(
-    Output('endingBody-dropdown', 'options'),
+     Output('endingBody-dropdown', 'options'),
     [Input('startingBody-dropdown', 'value'),
      Input('system-div', 'children')]
     )

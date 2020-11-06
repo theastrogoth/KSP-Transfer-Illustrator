@@ -110,8 +110,11 @@ def sort_system(unsortedSystem):
     for bd in unsortedSystem:
         bd.sort_satellites()
     
-    sun = [bd for bd in unsortedSystem if bd.orb.prim.name == bd.name][0]
-    
+    try:
+        sun = [bd for bd in unsortedSystem if bd.name == 'Sun'][0]
+    except:
+        sun = [bd for bd in unsortedSystem if bd.orb.prim.name == bd.name][0]
+        
     add_body_and_satellites(sortedSystem, sun)
     return sortedSystem
 
@@ -119,3 +122,49 @@ def ini_to_system(ini, path=True):
     system_dicts = dicts_from_ini_file(ini, path)
     system = dicts_to_system(system_dicts)
     return sort_system(system)
+
+def system_to_ini(system, path=None):
+    if path is None:
+        path = "bodies.ini"
+    f = open(path, "w")
+    for bd in system:
+        f.write('['+bd.name+']\n')
+        if bd.orb.prim.name == bd.name:
+            f.write('epoch = 0\n')
+            f.write('sma = 0\n')
+            f.write('ecc = 0\n')
+            f.write('inc = 0\n')
+            f.write('raan = 0\n')
+            f.write('arg = 0\n')
+            f.write('mean = 0\n')
+            f.write('gm = ' + str(bd.mu / 1E9) + '\n')
+            f.write('radius = ' + str(bd.eqr / 1000) + '\n')
+            f.write('parent = \n')
+            f.write('parentID = -1\n')
+        else:
+            f.write('epoch = ' + str(bd.orb.epoch)+'\n')
+            f.write('sma = ' + str(bd.orb.a / 1000)+'\n')
+            f.write('ecc = ' + str(bd.orb.ecc)+'\n')
+            f.write('inc = ' + str(bd.orb.inc *180/pi)+'\n')
+            f.write('raan = ' + str(bd.orb.lan *180/pi)+'\n')
+            f.write('arg = ' + str(bd.orb.argp *180/pi)+'\n')
+            f.write('mean = ' + str(bd.orb.mo *180/pi)+'\n')
+            f.write('gm = ' + str(bd.mu / 1E9) + '\n')
+            f.write('radius = ' + str(bd.eqr / 1000) + '\n')
+            f.write('parent = \n')
+            f.write('parentID = -1\n')
+        
+        f.write('color = ' + str(bd.color) + '\n')
+        f.write('\n')
+        
+    f.close()
+    
+    return
+
+import jsonpickle
+
+infile = open('kerbol_system.json','r')
+kerbol_system = jsonpickle.decode(infile.read())
+infile.close
+
+system_to_ini(kerbol_system)
