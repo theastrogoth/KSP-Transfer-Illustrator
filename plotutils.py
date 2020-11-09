@@ -753,6 +753,18 @@ def plot_system(fig, centralBody, t, dateFormat, displays):
     else:
         lim = centralBody.soi
     
+    if lim < centralBody.eqr * 5:
+        lim = centralBody.eqr * 5
+    
+    try:
+        furthestSatellite = centralBody.satellites[-1]
+        soi = centralBody.soi
+        satLim = furthestSatellite.orb.a * (1 + furthestSatellite.orb.ecc)
+        if soi > 3*satLim:
+            lim = 3*satLim
+    except:
+        pass
+    
     # add reference direction line
     if 'ref' in displays:
         add_reference_line(fig, lim)
