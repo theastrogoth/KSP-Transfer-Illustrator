@@ -492,12 +492,7 @@ class Transfer:
             vRel = vTrans - vPrim
             
             # speed after ejection burn
-            try:
-                vo = math.sqrt(norm(vRel)**2 + 2*(mu/ro - mu/rEscape))
-            except:
-                print(ro)
-                print(str(norm(vRel)**2)+', '+str(2*(mu/ro - mu/rEscape)))
-                vo = 0
+            vo = math.sqrt(norm(vRel)**2 + 2*(mu/ro - mu/rEscape))
             
             # escape trajectory elements
             e = math.sqrt(1+2*(vo**2/2 - mu/ro) * ro**2 * vo**2 / mu**2)
