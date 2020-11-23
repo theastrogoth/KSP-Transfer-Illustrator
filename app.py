@@ -20,6 +20,7 @@ from body import Body
 from vessel import Vessel
 from transfer import Transfer
 from prktable import PorkchopTable
+from flyby import Flyby
 
 
 DOWNLOAD_DIRECTORY = "/tmp/app_generated_files"
@@ -61,6 +62,89 @@ def name_options(objectList):
     for ob in objectList:
         nameOptions.append(ob.name) 
     return [{'label': i, 'value': i} for i in nameOptions]
+
+def plot_transfer_orbits(fig, chosenTransfer, sliderTime,
+                         displays, dateFormat,
+                         ignoreStart=False, ignoreEnd=False):
+    
+    # add the transfer orbit(s)
+    burnTime = chosenTransfer.get_departure_burn_time()
+    startTime = chosenTransfer.startTime
+    endTime = chosenTransfer.startTime + chosenTransfer.flightTime
+    
+    if chosenTransfer.planeChange is True:
+        pcTime = chosenTransfer.startTime + chosenTransfer.planeChangeDT
+    else:
+        pcTime = endTime
+    
+    if ('orbits' in displays):
+        
+        if 'apses' in displays:
+            apses = True
+        else:
+            apses = False
+        if 'nodes' in displays:
+            nodes = True
+        else:
+            nodes = False
+        
+        # add transfer orbit
+        add_orbit(fig, chosenTransfer.transferOrbit, startTime,             \
+                  pcTime, 201, dateFormat, name = 'Transfer',               \
+                  apses = False, nodes = False, fullPeriod = False);
+        
+        # if it exists, add the transfer orbit after plane change
+        if chosenTransfer.planeChange is True:
+            add_orbit(fig, chosenTransfer.transferOrbitPC,                  \
+                      pcTime, endTime, 201, dateFormat,                     \
+                      name = 'Transfer (plane change)',                     \
+                      fullPeriod = False, apses = apses, nodes = nodes);
+            if 'arrows' in displays:
+                add_burn_arrow(fig, chosenTransfer.planeChangeDV, pcTime,   \
+                               chosenTransfer.transferOrbit, dateFormat,    \
+                               scale=1/4);
+        
+        # if the starting orbit is around the primary body, add it
+        if (chosenTransfer.startOrbit.prim ==                               \
+            chosenTransfer.transferOrbit.prim) and not ignoreStart:
+            add_orbit(fig, chosenTransfer.startOrbit, startTime, endTime,
+                      201, dateFormat, name = 'Start', apses = apses,       \
+                      nodes = nodes);
+            if 'arrows' in displays:
+                add_burn_arrow(fig, chosenTransfer.ejectionDV, startTime,   \
+                               chosenTransfer.startOrbit, dateFormat,       \
+                               scale = 1/4);
+        
+        # if the target orbit is around the primary body, add it
+        if (chosenTransfer.endOrbit.prim ==                                 \
+            chosenTransfer.transferOrbit.prim) and not ignoreEnd:
+            add_orbit(fig, chosenTransfer.endOrbit, startTime, endTime,     \
+                      201, dateFormat, name = 'Target', apses = apses,      \
+                      nodes = nodes);
+            if 'arrows' in displays:
+                if not chosenTransfer.ignoreInsertion:
+                    if chosenTransfer.planeChange:
+                        add_burn_arrow(fig, chosenTransfer.insertionDV,     \
+                                       endTime,                             \
+                                       chosenTransfer.transferOrbitPC,      \
+                                       dateFormat, scale = 1/4);
+                    else:
+                        add_burn_arrow(fig, chosenTransfer.insertionDV,     \
+                                       endTime,chosenTransfer.transferOrbit,\
+                                       dateFormat, scale = 1/4);
+    
+    # add transfer phase angle illustration
+    if 'angles' in displays:
+        add_transfer_phase_angle(fig, chosenTransfer,                       \
+                                 1.5*chosenTransfer.transferOrbit.a)
+    
+    # add marker for vessel position at slider time
+    if ((sliderTime < pcTime) and (sliderTime > startTime)):
+            vessel = Body('Vessel',0,0,0,chosenTransfer.transferOrbit)
+            add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'square')
+    elif (sliderTime > pcTime) and (sliderTime < endTime):
+            vessel = Body('Vessel',0,0,0,chosenTransfer.transferOrbitPC)
+            add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'square')
 
 #%% download functions
 
@@ -134,18 +218,11 @@ app.layout = html.Div(id='kspti-body', children=[
                     dcc.Dropdown(
                         id = 'endingBody-dropdown',
                         value = 'Duna',
-                        options=[
-                            {'label': 'Sun', 'value': 'Kerbol'},
-                            {'label': 'Moho', 'value': 'Moho'},
-                            {'label': 'Eve', 'value': 'Eve'},
-                            {'label': 'Kerbin', 'value': 'Kerbin'},
-                            {'label': 'Mun', 'value': 'Mun'},
-                            {'label': 'Minmus', 'value': 'Minmus'},
-                            {'label': 'Duna', 'value': 'Duna'},
-                            {'label': 'Dres', 'value': 'Dres'},
-                            {'label': 'Jool', 'value': 'Jool'},
-                            {'label': 'Eeloo', 'value': 'Eeloo'},
-                            ],
+                        ),
+                    html.Label('Flyby Body'),
+                    dcc.Dropdown(
+                        id = 'flybyBody-dropdown',
+                        value = None,
                         ),
                     html.Label('Starting altitude (km)'),
                     dcc.Input(id = 'startPark-input', value=100, 
@@ -651,9 +728,15 @@ app.layout = html.Div(id='kspti-body', children=[
             ]),
         ]),
     html.Div(className='four columns', children = [
-        html.H3('Porkchop Plot'),
-        dcc.Markdown('**Display Type**'),
-        dcc.Dropdown(
+        html.Button(children = 'Plot!',
+            className = 'button-primary',
+            id = 'plot-button',
+            n_clicks = 0
+            ),
+        html.Div(id='porkchop-plot-div', children=[
+            html.H3('Porkchop Plot'),
+            dcc.Markdown('**Display Type**'),
+            dcc.Dropdown(
                         id = 'porkchopDisplay-dropdown',
                         options=[{'label': 'Total Δv', 'value': 'total'},
                                  {'label': 'Departure Δv', 'value': 'eject'},
@@ -661,12 +744,6 @@ app.layout = html.Div(id='kspti-body', children=[
                                  ],
                         value='total'
                         ),
-        html.Button(children = 'Plot!',
-                    className = 'button-primary',
-                    id = 'porkchop-button',
-                    n_clicks = 0
-            ),
-        html.Div(children=[
             dcc.Loading(id='porkchop-loading',children=[
                 dcc.Graph(
                     id='porkchop-graph',
@@ -680,7 +757,7 @@ app.layout = html.Div(id='kspti-body', children=[
                 html.Div(id='flight-times-div', style={'display': 'none'}),
                 ]),
             ]),
-        html.Div([
+        html.Div(id='transfer-details-div', children=[
             html.Div(id='failedConvergenceWarning-div',
                      style={'display': 'none'},
                      children=[
@@ -721,7 +798,20 @@ app.layout = html.Div(id='kspti-body', children=[
                          dcc.Markdown(id = 'insertionOrbit-markdown',
                                       style={"white-space": "pre"})
                          ])
-            ])
+            ]),
+        html.Div(id='flyby-details-div', style={'display': 'none'}, children=[
+            dcc.Loading(id='flyby-calcs-loading', children = [
+                html.Div(style={'padding-top' : 50}, children=[
+                    html.Button(children = 'Optimize',
+                                className = 'button-primary',
+                                id = 'flybyOptimize-button',
+                                n_clicks = 0,
+                                ),
+                    ]),
+                html.Div(id='flyby-div', style={'display': 'none'},
+                         children = []),
+                ])
+            ]),
         ]),
     html.Div(className='four columns', children = [
         html.H3('Orbit Plots'),
@@ -741,75 +831,125 @@ app.layout = html.Div(id='kspti-body', children=[
                 ],
             labelStyle={'display': 'inline-block'},
             ),
-        html.Div(id='transfer-plot-div', style={'display': 'none'}, children=[
-        dcc.Loading(id='transfer-loading', type='circle', children=[
-            dcc.Markdown('**Transfer Trajectory**'),
-            dcc.Graph(
-                id='transfer-graph',
-                figure = blank_plot(),
-                ),
+        dcc.Tabs(id='plot-tabs', className='control-tabs', value='transfer', children=[
+          dcc.Tab(
+              id='transfer-plot-tab',
+              label='Transfer',
+              value='transfer',
+              children = html.Div(className='control-tab', children = [
+            html.Div(id='transfer-plot-div', style={'display': 'none'}, children=[
+            dcc.Loading(id='transfer-loading', type='circle', children=[
+                dcc.Markdown('**Transfer Trajectory**'),
+                dcc.Graph(
+                    id='transfer-graph',
+                    figure = blank_plot(),
+                    ),
+                    ]),
+                dcc.Slider(
+                    id='transfer-slider',
+                    min=0,
+                    max=1,
+                    step=1,
+                    marks = dict(),
+                    value=0,
+                    included=False,
+                    updatemode='mouseup'
+                    ),
+                html.A(children=html.Button('Download', className='control-button'),
+                       id='transferPlot-download',
+                       download="TransferPlot.html", href="",
+                       target="_blank"),
                 ]),
-            dcc.Slider(
-                id='transfer-slider',
-                min=0,
-                max=1,
-                step=1,
-                marks = dict(),
-                value=0,
-                included=False,
-                updatemode='mouseup'
-                ),
-            html.A(children=html.Button('Download', className='control-button'),
-                   id='transferPlot-download',
-                   download="TransferPlot.html", href="",
-                   target="_blank"),
-            ]),
-        html.Div(id='ejection-plot-div', style={'display': 'none'}, children=[
-        dcc.Loading(id='ejection-loading', type='circle', children=[
-            dcc.Markdown('**Ejection Trajectory**'),
-            dcc.Graph(
-                id='ejection-graph',
-                figure = blank_plot(),
-                ),
+            ])),
+          dcc.Tab(
+              id='ejection-plot-tab',
+              label='Ejection',
+              value='ejection',
+              children = html.Div(className='control-tab', children = [
+            html.Div(id='ejection-plot-div', style={'display': 'none'}, children=[
+            dcc.Loading(id='ejection-loading', type='circle', children=[
+                dcc.Markdown('**Ejection Trajectory**'),
+                dcc.Graph(
+                    id='ejection-graph',
+                    figure = blank_plot(),
+                    ),
+                    ]),
+                dcc.Slider(
+                    id='ejection-slider',
+                    min=0,
+                    max=1,
+                    step=1,
+                    marks = dict(),
+                    value=0,
+                    included=False,
+                    updatemode='mouseup'
+                    ),
+                html.A(children=html.Button('Download', className='control-button'),
+                       id='ejectionPlot-download',
+                       download="EjectionPlot.html", href="",
+                       target="_blank"),
                 ]),
-            dcc.Slider(
-                id='ejection-slider',
-                min=0,
-                max=1,
-                step=1,
-                marks = dict(),
-                value=0,
-                included=False,
-                updatemode='mouseup'
-                ),
-            html.A(children=html.Button('Download', className='control-button'),
-                   id='ejectionPlot-download',
-                   download="EjectionPlot.html", href="",
-                   target="_blank"),
-            ]),
-        html.Div(id='insertion-plot-div', style={'display': 'none'}, children=[
-        dcc.Loading(id='insertion-loading', type='circle', children=[
-            dcc.Markdown('**Insertion Trajectory**'),
-            dcc.Graph(
-                id='insertion-graph',
-                figure = blank_plot(),
-                ),
+            ])),
+          dcc.Tab(
+              id='insertion-plot-tab',
+              label='Insertion',
+              value='insertion',
+              children = html.Div(className='control-tab', children = [
+            html.Div(id='insertion-plot-div', style={'display': 'none'}, children=[
+            dcc.Loading(id='insertion-loading', type='circle', children=[
+                dcc.Markdown('**Insertion Trajectory**'),
+                dcc.Graph(
+                    id='insertion-graph',
+                    figure = blank_plot(),
+                    ),
+                    ]),
+                dcc.Slider(
+                    id='insertion-slider',
+                    min=0,
+                    max=1,
+                    step=1,
+                    marks = dict(),
+                    value=0,
+                    included=False,
+                    updatemode='mouseup'
+                    ),
+                html.A(children=html.Button('Download',className='control-button'),
+                       id='insertionPlot-download',
+                       download="InsertionPlot.html", href="",
+                       target="_blank"),
                 ]),
-            dcc.Slider(
-                id='insertion-slider',
-                min=0,
-                max=1,
-                step=1,
-                marks = dict(),
-                value=0,
-                included=False,
-                updatemode='mouseup'
-                ),
-            html.A(children=html.Button('Download',className='control-button'),
-                   id='insertionPlot-download',
-                   download="InsertionPlot.html", href="",
-                   target="_blank"),
-            ]),
+            ])),
+          dcc.Tab(
+              id='flyby-plot-tab',
+              label='Flyby',
+              value='flyby',
+              # style={'display': 'none'},
+              children = html.Div(className='control-tab', children = [
+            html.Div(id='flyby-plot-div', style={'display': 'none'}, children=[
+            dcc.Loading(id='flyby-loading', type='circle', children=[
+                dcc.Markdown('**Flyby Trajectory**'),
+                dcc.Graph(
+                    id='flyby-graph',
+                    figure = blank_plot(),
+                    ),
+                    ]),
+                dcc.Slider(
+                    id='flyby-slider',
+                    min=0,
+                    max=1,
+                    step=1,
+                    marks = dict(),
+                    value=0,
+                    included=False,
+                    updatemode='mouseup'
+                    ),
+                html.A(children=html.Button('Download',className='control-button'),
+                       id='flybyPlot-download',
+                       download="FlybyPlot.html", href="",
+                       target="_blank"),
+                ]),
+            ])),
+          ]),
         ]),
     # Hidden Divs to store data
     html.Div(id='dateFormat-div', style = {'display': 'none'},
@@ -1047,7 +1187,8 @@ def set_startBody_options(system_data):
     return [{'label': i, 'value': i} for i in start_bodies]
 
 @app.callback(
-     Output('endingBody-dropdown', 'options'),
+    [Output('endingBody-dropdown', 'options'),
+     Output('flybyBody-dropdown', 'options')],
     [Input('startingBody-dropdown', 'value'),
      Input('system-div', 'children')]
     )
@@ -1064,7 +1205,10 @@ def set_endBody_options(start_body_name, system_data):
             end_bodies.append(sat.name)
     for sat in sb.satellites:
         end_bodies.append(sat.name)
-    return [{'label': i, 'value': i} for i in end_bodies]
+    
+    opts = [{'label': i, 'value': i} for i in end_bodies]
+    
+    return opts, opts
 
 @app.callback(
      Output('start-ref-label','children'),
@@ -1219,7 +1363,7 @@ def update_early_start_day(early_start_day2, prev_state):
 @app.callback(
     [Output('depart-times-div','children'),
      Output('flight-times-div','children')],
-    [Input('porkchop-button','n_clicks'),
+    [Input('plot-button','n_clicks'),
      Input('porkchop-graph','relayoutData')],
     [State('dateFormat-div','children'),
      State('earlyStartYear-input','value'),
@@ -1283,9 +1427,31 @@ def update_flight_time_bounds(nClicks, relayout, dateFormat,
     return [minStartTime, maxStartTime], [minFlightTime, maxFlightTime]
 
 @app.callback(
-     Output('porkchop-div','children'),
+    [Output('porkchop-plot-div','style'),
+     Output('transfer-details-div','style'),
+     Output('flyby-details-div','style')],
+    [Input('plot-button','n_clicks')],
+    [State('flybyBody-dropdown','value'),
+     State('system-div','children')]
+    )
+def transfer_or_flyby(nClicks, flybyBodyName, system):
+    
+    system = jsonpickle.decode(system)
+    
+    flybyBody = [x for x in system if x.name == flybyBodyName]
+    print(flybyBody)
+    if not len(flybyBody) > 0:
+        return None, None, {'display': 'none'}
+    else:
+        return {'display': 'none'}, {'display': 'none'}, None
+    
+    
+@app.callback(
+    [Output('porkchop-div','children'),
+     Output('flyby-div','children')],
     [Input('depart-times-div','children'),
-     Input('flight-times-div','children')],
+     Input('flight-times-div','children'),
+     Input('flybyOptimize-button','n_clicks')],
     [State('system-div','children'),
      State('trType-dropdown','value'),
      State('cheapStartOrbit-checklist','value'),
@@ -1299,6 +1465,7 @@ def update_flight_time_bounds(nClicks, relayout, dateFormat,
      State('startlan-input','value'),
      State('startmo-input','value'),
      State('startepoch-input','value'),
+     State('flybyBody-dropdown','value'),
      State('endingBody-dropdown','value'),
      State('enda-input','value'),
      State('endecc-input','value'),
@@ -1307,26 +1474,38 @@ def update_flight_time_bounds(nClicks, relayout, dateFormat,
      State('endlan-input','value'),
      State('endmo-input','value'),
      State('endepoch-input','value'),
-     State('numPointsSampled-input','value')]
+     State('numPointsSampled-input','value'),
+     State('flyby-div','children')]
     )
-def update_porkchop_data(startTimeRange, flightTimeRange,
+def update_porkchop_data(startTimeRange, flightTimeRange, optButtonClicks,
                          system, transferType,
                          cheapStartOrb, cheapEndOrb, noInsertion,
                          startBodyName, startA, startEcc, startInc,
                          startArgP, startLAN, startMo, startEpoch,
+                         flybyBodyName,
                          endBodyName, endA, endEcc, endInc,
                          endArgP, endLAN, endMo, endEpoch,
-                         numPointsSampled):
+                         numPointsSampled, prevFlyby):
     
     # return empty plot on page load
     ctx = dash.callback_context
     if not ctx.triggered:
-        return dash.no_update
+        return dash.no_update, dash.no_update
+    
+    if ctx.triggered[0]['prop_id'].split('.')[0] == 'flybyOptimize-button':
+        if prevFlyby is None:
+            return dash.no_update, dash.no_update
+        else:
+            flyby = jsonpickle.decode(prevFlyby)
+            flyby.optimize_flyby()
+            return dash.no_update, jsonpickle.encode(flyby)
     
     # prepare system information, start & and bodies
     system = jsonpickle.decode(system)
+    
     sBody = [x for x in system if x.name == startBodyName][0]
     eBody = [x for x in system if x.name == endBodyName][0]
+    
     
     # prepare start and end orbit parameters
     if startA is None:
@@ -1390,6 +1569,14 @@ def update_porkchop_data(startTimeRange, flightTimeRange,
     minFlightTime = flightTimeRange[0]
     maxFlightTime = flightTimeRange[1]
     
+    flybyBody = [x for x in system if x.name == flybyBodyName]
+    if len(flybyBody) > 0:
+        
+        flyby = Flyby(sOrb, flybyBody[0], eOrb, minStartTime, maxStartTime,
+                      ignoreInsertion = noInsertion)
+        
+        return None, jsonpickle.encode(flyby)
+    
     # prepare porkchop table
     porkTable = PorkchopTable(sOrb, eOrb, transferType, noInsertion,
                               cheapStartOrb, cheapEndOrb,
@@ -1397,25 +1584,10 @@ def update_porkchop_data(startTimeRange, flightTimeRange,
                               minFlightTime, maxFlightTime,
                               numPointsSampled, numPointsSampled)
     
-    return jsonpickle.encode(porkTable)
+    return jsonpickle.encode(porkTable), None
 
 @app.callback(
-    [Output('transfer-div','children'),
-     Output('transfer-slider','min'),
-     Output('transfer-slider','max'),
-     Output('transfer-slider','step'),
-     Output('transfer-slider','marks'),
-     Output('transfer-slider','value'),
-     Output('ejection-slider','min'),
-     Output('ejection-slider','max'),
-     Output('ejection-slider','step'),
-     Output('ejection-slider','marks'),
-     Output('ejection-slider','value'),
-     Output('insertion-slider','min'),
-     Output('insertion-slider','max'),
-     Output('insertion-slider','step'),
-     Output('insertion-slider','marks'),
-     Output('insertion-slider','value')],
+     Output('transfer-div','children'),
     [Input('porkchop-div','children'),
      Input('porkchop-graph','clickData')],
     [State('dateFormat-div','children'),
@@ -1424,12 +1596,8 @@ def update_porkchop_data(startTimeRange, flightTimeRange,
 def update_chosen_tranfser(porkTable, clickData, dateFormat, matchMo):
     
     ctx = dash.callback_context
-    if not ctx.triggered:
-        return dash.no_update, dash.no_update, dash.no_update,              \
-            dash.no_update, dash.no_update, dash.no_update, dash.no_update, \
-            dash.no_update, dash.no_update, dash.no_update, dash.no_update, \
-            dash.no_update, dash.no_update, dash.no_update, dash.no_update, \
-            dash.no_update;
+    if not ctx.triggered or porkTable is None:
+        return None
     
     porkTable = jsonpickle.decode(porkTable)
     
@@ -1458,54 +1626,7 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat, matchMo):
         if not transfer.insertionTrajectory is None:
             transfer.adjust_end_orbit_mo()
     
-    # set slider attributes for transfer plot
-    trMinTime = transfer.get_departure_burn_time()
-    trMaxTime = transfer.startTime + transfer.flightTime
-    trStep = 1
-    trMarks = {
-        trMinTime: 'Departure',
-        trMaxTime: 'Target Encounter'
-        }
-    trValue = trMinTime
-    
-    # set slider attributes for ejection plot
-    if not transfer.ejectionTrajectory is None:
-        ejMinTime = transfer.get_departure_burn_time()
-        ejMaxTime = transfer.startTime
-        ejStep = 1
-        ejMarks = {
-            ejMinTime: 'Departure Burn',
-            ejMaxTime: 'SoI Escape',
-            }
-        ejValue = ejMinTime
-    else:
-        ejMinTime = 0
-        ejMaxTime = 1
-        ejStep = 1
-        ejMarks = dict()
-        ejValue = 0
-    
-    # set slider attributes for insertion plot
-    if not transfer.insertionTrajectory is None:
-        inMinTime = transfer.startTime + transfer.flightTime
-        inMaxTime = transfer.get_arrival_burn_time()
-        inStep = 1
-        inMarks = {
-            inMinTime: 'SoI Encounter',
-            inMaxTime: 'Arrival Burn',
-            }
-        inValue = inMaxTime
-    else:
-        inMinTime = 0
-        inMaxTime = 1
-        inStep = 1
-        inMarks = dict()
-        inValue = 1
-    
-    return jsonpickle.encode(transfer),                                     \
-            trMinTime, trMaxTime, trStep, trMarks, trValue,                 \
-            ejMinTime, ejMaxTime, ejStep, ejMarks, ejValue,                 \
-            inMinTime, inMaxTime, inStep, inMarks, inValue,
+    return jsonpickle.encode(transfer)
 
 @app.callback(
     Output('porkchop-graph','figure'),
@@ -1799,107 +1920,157 @@ def update_transfer_details(chosenTransfer, dateFormat):
             
 
 @app.callback(
+    [Output('transfer-slider','min'),
+     Output('transfer-slider','max'),
+     Output('transfer-slider','step'),
+     Output('transfer-slider','marks'),
+     Output('transfer-slider','value'),
+     Output('ejection-slider','min'),
+     Output('ejection-slider','max'),
+     Output('ejection-slider','step'),
+     Output('ejection-slider','marks'),
+     Output('ejection-slider','value'),
+     Output('insertion-slider','min'),
+     Output('insertion-slider','max'),
+     Output('insertion-slider','step'),
+     Output('insertion-slider','marks'),
+     Output('insertion-slider','value'),
+     Output('flyby-slider','min'),
+     Output('flyby-slider','max'),
+     Output('flyby-slider','step'),
+     Output('flyby-slider','marks'),
+     Output('flyby-slider','value')],
+    [Input('transfer-div','children'),
+     Input('flyby-div','children')]
+    )
+def set_slider_times(chosenTransfer, flyby):
+    
+    if not flyby is None:
+        flyby = jsonpickle.decode(flyby)
+        transfer1 = flyby.transfer1
+        transfer2 = flyby.transfer2
+    
+    else:
+        if chosenTransfer is None:
+            return dash.no_update, dash.no_update, dash.no_update,          \
+                   dash.no_update, dash.no_update, dash.no_update,          \
+                   dash.no_update, dash.no_update, dash.no_update,          \
+                   dash.no_update, dash.no_update, dash.no_update,          \
+                   dash.no_update, dash.no_update, dash.no_update,          \
+                   dash.no_update, dash.no_update, dash.no_update,          \
+                   dash.no_update, dash.no_update, dash.no_update,          \
+                   dash.no_update, dash.no_update, dash.no_update,          \
+                   dash.no_update;
+        transfer1 = jsonpickle.decode(chosenTransfer)
+        transfer2 = transfer1
+    
+    # set slider attributes for transfer plot
+    trMinTime = transfer1.get_departure_burn_time()
+    trMaxTime = transfer2.startTime + transfer2.flightTime
+    trStep = 1
+    trMarks = {
+        trMinTime: 'Departure',
+        trMaxTime: 'Target Encounter'
+        }
+    trValue = trMinTime
+    
+    # set slider attributes for ejection plot
+    if not transfer1.ejectionTrajectory is None:
+        ejMinTime = transfer1.get_departure_burn_time()
+        ejMaxTime = transfer1.startTime
+        ejStep = 1
+        ejMarks = {
+            ejMinTime: 'Departure Burn',
+            ejMaxTime: 'SoI Escape',
+            }
+        ejValue = ejMinTime
+    else:
+        ejMinTime = 0
+        ejMaxTime = 1
+        ejStep = 1
+        ejMarks = dict()
+        ejValue = 0
+    
+    # set slider attributes for insertion plot
+    if not transfer2.insertionTrajectory is None:
+        inMinTime = transfer2.startTime + transfer2.flightTime
+        inMaxTime = transfer2.get_arrival_burn_time()
+        inStep = 1
+        inMarks = {
+            inMinTime: 'SoI Encounter',
+            inMaxTime: 'Arrival Burn',
+            }
+        inValue = inMaxTime
+    else:
+        inMinTime = 0
+        inMaxTime = 1
+        inStep = 1
+        inMarks = dict()
+        inValue = 1
+    
+    # set slider attributes for flyby plot
+    if not flyby is None:
+        fbMinTime = transfer1.startTime + transfer1.flightTime
+        fbMaxTime = transfer2.startTime
+        fbStep = 1
+        fbMarks = {
+            inMinTime: 'SoI Encounter',
+            inMaxTime: 'SoI Escape',
+            }
+        fbValue = flyby.inOrb.epoch
+    else:
+        fbMinTime = 0
+        fbMaxTime = 1
+        fbStep = 1
+        fbMarks = dict()
+        fbValue = 1
+    
+    return  trMinTime, trMaxTime, trStep, trMarks, trValue,                 \
+            ejMinTime, ejMaxTime, ejStep, ejMarks, ejValue,                 \
+            inMinTime, inMaxTime, inStep, inMarks, inValue,                 \
+            fbMinTime, fbMaxTime, fbStep, fbMarks, fbValue;
+
+@app.callback(
     [Output('transfer-graph', 'figure'),
      Output('transfer-plot-div','style'),
      Output('transferPlot-download', 'href')],
     [Input('transfer-div', 'children'),
+     Input('flyby-div','children'),
      Input('transfer-slider', 'value'),
      Input('display-checklist', 'value'),
      Input('dateFormat-div', 'children')],
     [State('transfer-graph', 'figure')]
     )
-def update_transfer_plot(chosenTransfer, sliderTime, displays,
+def update_transfer_plot(chosenTransfer, flyby, sliderTime, displays,
                          dateFormat, prevFig):
-    
-    if chosenTransfer is None:
-        return prevFig, dash.no_update, ""
-    
-    chosenTransfer = jsonpickle.decode(chosenTransfer)
     
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
+    
+    if not flyby is None:
+        flyby = jsonpickle.decode(flyby)
+        transfers = [flyby.transfer1, flyby.transfer2]
+        chosenTransfer = flyby.transfer1
+        ignoreStart = [False, True]
+        ignoreEnd = [True, False]
+    
+    else:
+        if chosenTransfer is None:
+            return prevFig, dash.no_update, ""
+        chosenTransfer = jsonpickle.decode(chosenTransfer)
+        transfers = [chosenTransfer]
+        ignoreStart = [False]
+        ignoreEnd = [False]
+        
     
     # plot system at slider time
     lim = plot_system(fig, chosenTransfer.transferOrbit.prim, sliderTime,   \
                 dateFormat, displays)
     
-    # add the transfer orbit(s)
-    burnTime = chosenTransfer.get_departure_burn_time()
-    startTime = chosenTransfer.startTime
-    endTime = chosenTransfer.startTime + chosenTransfer.flightTime
-    
-    if chosenTransfer.planeChange is True:
-        pcTime = chosenTransfer.startTime + chosenTransfer.planeChangeDT
-    else:
-        pcTime = endTime
-    
-    if ('orbits' in displays):
-        
-        if 'apses' in displays:
-            apses = True
-        else:
-            apses = False
-        if 'nodes' in displays:
-            nodes = True
-        else:
-            nodes = False
-        
-        # add transfer orbit
-        add_orbit(fig, chosenTransfer.transferOrbit, startTime,             \
-                  pcTime, 201, dateFormat, name = 'Transfer',               \
-                  apses = False, nodes = False, fullPeriod = False);
-        
-        # if it exists, add the transfer orbit after plane change
-        if chosenTransfer.planeChange is True:
-            add_orbit(fig, chosenTransfer.transferOrbitPC,                  \
-                      pcTime, endTime, 201, dateFormat,                     \
-                      name = 'Transfer (plane change)',                     \
-                      fullPeriod = False, apses = apses, nodes = nodes);
-            if 'arrows' in displays:
-                add_burn_arrow(fig, chosenTransfer.planeChangeDV, pcTime,   \
-                               chosenTransfer.transferOrbit, dateFormat,    \
-                               scale=1/4);
-        
-        # if the starting orbit is around the primary body, add it
-        if (chosenTransfer.startOrbit.prim ==                               \
-            chosenTransfer.transferOrbit.prim):
-            add_orbit(fig, chosenTransfer.startOrbit, startTime, endTime,
-                      201, dateFormat, name = 'Start', apses = apses,       \
-                      nodes = nodes);
-            if 'arrows' in displays:
-                add_burn_arrow(fig, chosenTransfer.ejectionDV, startTime,   \
-                               chosenTransfer.startOrbit, dateFormat,       \
-                               scale = 1/4);
-        
-        # if the target orbit is around the primary body, add it
-        if (chosenTransfer.endOrbit.prim == chosenTransfer.transferOrbit.prim):
-            add_orbit(fig, chosenTransfer.endOrbit, startTime, endTime,     \
-                      201, dateFormat, name = 'Target', apses = apses,      \
-                      nodes = nodes);
-            if 'arrows' in displays:
-                if not chosenTransfer.ignoreInsertion:
-                    if chosenTransfer.planeChange:
-                        add_burn_arrow(fig, chosenTransfer.insertionDV,     \
-                                       endTime,                             \
-                                       chosenTransfer.transferOrbitPC,      \
-                                       dateFormat, scale = 1/4);
-                    else:
-                        add_burn_arrow(fig, chosenTransfer.insertionDV,     \
-                                       endTime,chosenTransfer.transferOrbit,\
-                                       dateFormat, scale = 1/4);
-    
-    # add transfer phase angle illustration
-    if 'angles' in displays:
-        add_transfer_phase_angle(fig, chosenTransfer,                       \
-                                 1.5*chosenTransfer.transferOrbit.a)
-    
-    # add marker for vessel position at slider time
-    if (not chosenTransfer.planeChange) or                                  \
-       (sliderTime < chosenTransfer.startTime + chosenTransfer.planeChangeDT):
-           vessel = Body('Vessel',0,0,0,chosenTransfer.transferOrbit)
-    else:
-           vessel = Body('Vessel',0,0,0,chosenTransfer.transferOrbitPC)
-    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'square')
+    # plot all transfer orbits
+    for ii, transfer in enumerate(transfers):
+        plot_transfer_orbits(fig, transfer, sliderTime, displays, dateFormat,
+                             ignoreStart[ii], ignoreEnd[ii])
     
     # update the plot layout with blank axes, dark grey background, etc
     uirev = chosenTransfer.transferOrbit.prim.name
@@ -1922,17 +2093,26 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
      Output('ejection-plot-div', 'style'),
      Output('ejectionPlot-download','href')],
     [Input('transfer-div', 'children'),
+     Input('flyby-div', 'children'),
      Input('ejection-slider', 'value'),
      Input('display-checklist', 'value'),
      Input('dateFormat-div', 'children')]
     )
-def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
+def update_ejection_plot(chosenTransfer, flyby, sliderTime,
+                         displays, dateFormat):
+    
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
-    if chosenTransfer is None:
-        return fig, dict(display = 'none'), ""
     
-    chosenTransfer = jsonpickle.decode(chosenTransfer)
+    if not flyby is None:
+        flyby = jsonpickle.decode(flyby)
+        chosenTransfer = flyby.transfer1
+    
+    else:
+        if chosenTransfer is None:
+            return fig, dict(display = 'none'), ""
+        chosenTransfer = jsonpickle.decode(chosenTransfer)
+        
     if chosenTransfer.ejectionTrajectory is None:
         return fig, dict(display = 'none'), ""
     
@@ -1997,18 +2177,26 @@ def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
      Output('insertion-plot-div', 'style'),
      Output('insertionPlot-download', 'href')],
     [Input('transfer-div', 'children'),
+     Input('flyby-div', 'children'),
      Input('insertion-slider', 'value'),
      Input('display-checklist', 'value'),
      Input('dateFormat-div', 'children')]
     )
-def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
+def update_insertion_plot(chosenTransfer, flyby, sliderTime,
+                          displays, dateFormat):
     
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
-    if chosenTransfer is None:
-        return fig, dict(display = 'none'), ""
     
-    chosenTransfer = jsonpickle.decode(chosenTransfer)
+    if not flyby is None:
+        flyby = jsonpickle.decode(flyby)
+        chosenTransfer = flyby.transfer2
+    
+    else:
+        if chosenTransfer is None:
+            return fig, dict(display = 'none'), ""
+        chosenTransfer = jsonpickle.decode(chosenTransfer)
+        
     if chosenTransfer.insertionTrajectory is None:
         return fig, dict(display = 'none'), ""
     
@@ -2103,13 +2291,7 @@ def create_orbits_from_persistence_file(persistenceFile, system):
         if 'IDENT' in list(sfsVessel['ORBIT'].keys()):
             primName = sfsVessel['ORBIT']['IDENT']
             primName = primName.replace('Squad/','')
-            prim = [bd for bd in system if bd.name == primName]#[0]
-            if len(prim) < 1:
-                print(primName)
-                continue
-            else:
-                prim = prim[0]
-            
+            prim = [bd for bd in system if bd.name == primName][0]
         else:
             primRef = float(sfsVessel['ORBIT']['REF'])
             prim = [bd for bd in system if bd.ref == primRef][0]
