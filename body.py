@@ -108,4 +108,10 @@ class Body:
         
         if not self.orb.a is None:
             self.soi = self.orb.a * (self.mu/self.orb.prim.mu)**(2/5)
-
+    
+    def is_system_center(self):
+        
+        if self.orb.prim.name == self.name:
+            return True
+        else:
+            return False

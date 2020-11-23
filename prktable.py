@@ -118,7 +118,7 @@ class PorkchopTable:
                 # f.write(',')
                 # f.write('\n')
                 trs = self.get_chosen_transfer(startTime, flightTime)
-                totalDeltaVTable[xx][yy] = trs.get_total_delta_V()
+                totalDeltaVTable[xx][yy] = trs.get_total_delta_v()
                 ejectDeltaVTable[xx][yy] = norm(trs.ejectionDV)
                 insertDeltaVTable[xx][yy] = norm(trs.insertionDV)
         # f.close()
@@ -168,8 +168,8 @@ class PorkchopTable:
                                    startTime, flightTime,                   \
                                    True, self.ignoreInsertion,              \
                                    self.cheapStartOrb, self.cheapEndOrb);
-            bdv = btr.get_total_delta_V()
-            pdv = ptr.get_total_delta_V()
+            bdv = btr.get_total_delta_v()
+            pdv = ptr.get_total_delta_v()
                     
             if bdv <= pdv:
                 trs = btr
