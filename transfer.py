@@ -50,7 +50,8 @@ class Transfer:
     
     def __init__(self, startOrbit, endOrbit, startTime, flightTime, 
                  planeChange = False, ignoreInsertion = False,
-                 cheapStartOrb = False, cheapEndOrb = True):
+                 cheapStartOrb = False, cheapEndOrb = True,
+                 startPos = None, endPos = None):
         
         # Assign input attributes
         self.startOrbit = startOrbit
@@ -61,13 +62,14 @@ class Transfer:
         self.ignoreInsertion = ignoreInsertion
         self.cheapStartOrb = cheapStartOrb
         self.cheapEndOrb = cheapEndOrb
+        self.startPos = startPos
+        self.endPos = endPos
         
         self.originalStartOrbit = copy(self.startOrbit)
         self.originalEndOrbit = copy(self.endOrbit)
         
+        
         # These attributes get defined here but are filled in with methods
-        self.startPos = None
-        self.endPos = None
         self.transferOrbit = None
         self.transferOrbitPC = None
         self.ejectionTrajectory = None
@@ -385,9 +387,10 @@ class Transfer:
             self.startPos =                                                 \
               self.startOrbit.prim.orb.get_state_vector(self.startTime)[0] +\
                 self.ejectionTrajectory.get_state_vector(self.startTime)[0];
-            self.endPos =                                                   \
-                self.endOrbit.get_state_vector(self.startTime +             \
-                                               self.flightTime)[0];
+            if self.endPos is None:
+                self.endPos =                                               \
+                    self.endOrbit.get_state_vector(self.startTime +         \
+                                                   self.flightTime)[0];
         
         # Third case: starting in orbit around a body and transferring to a
         # parking orbit around one of its satellites
@@ -414,8 +417,9 @@ class Transfer:
                         self.get_departure_burn_time())[0]);
         
             # Set start and end position for refinining
-            self.startPos =                                                 \
-                self.startOrbit.get_state_vector(self.startTime)[0];
+            if self.startPos is None:
+                self.startPos =                                             \
+                    self.startOrbit.get_state_vector(self.startTime)[0];
             self.endPos =                                                   \
               self.endOrbit.prim.orb.get_state_vector(                      \
                   self.startTime + self.flightTime)[0] +                    \
@@ -488,7 +492,12 @@ class Transfer:
             vRel = vTrans - vPrim
             
             # speed after ejection burn
-            vo = math.sqrt(norm(vRel)**2 + 2*(mu/ro - mu/rEscape))
+            try:
+                vo = math.sqrt(norm(vRel)**2 + 2*(mu/ro - mu/rEscape))
+            except:
+                print(ro)
+                print(str(norm(vRel)**2)+', '+str(2*(mu/ro - mu/rEscape)))
+                vo = 0
             
             # escape trajectory elements
             e = math.sqrt(1+2*(vo**2/2 - mu/ro) * ro**2 * vo**2 / mu**2)
@@ -805,7 +814,7 @@ class Transfer:
     
     
     def adjust_end_orbit_mo(self):
-        """Modify starting orbit to have mean anomaly at epoch matching burn.
+        """Modify ending orbit to have mean anomaly at epoch matching burn.
         """
         
         burnTime = self.get_arrival_burn_time()
@@ -839,8 +848,8 @@ class Transfer:
                 return
             
             if it > 1:
-                self.startPos = None
-                self.endPos = None
+                # self.startPos = None
+                # self.endPos = None
                 self.startTime = self.startTime + dT
                 gen = self.genetic_refine()
                 if gen is None:
@@ -906,7 +915,7 @@ class Transfer:
         return self.startTime + self.planeChangeDT
     
     
-    def get_total_delta_V(self):
+    def get_total_delta_v(self):
         """Get total delta V required for all parts of transfer.
         
         Returns:
@@ -932,8 +941,8 @@ class Transfer:
             while abs(err) > tol:
                 gen = gen+1
                 if gen > maxGen:
-                    self.startPos = None
-                    self.endPos = None
+                    # self.startPos = None
+                    # self.endPos = None
                     self.get_transfer_details()
                     self.convergenceFail = True
                     if not self.ejectionTrajectory is None:

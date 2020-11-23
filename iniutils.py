@@ -115,7 +115,7 @@ def sort_system(unsortedSystem):
     sortedSystem = []
     for bd in unsortedSystem:
         bd.sort_satellites()
-        print([sat.name for sat in bd.satellites])
+        # print([sat.name for sat in bd.satellites])
     
     try:
         sun = [bd for bd in unsortedSystem if bd.name == 'Sun'][0]

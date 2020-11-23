@@ -1449,7 +1449,7 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat, matchMo):
     # adjust start orbit to match burn position or vice versa
     if matchMo:
         transfer.match_start_mean_anomaly()
-        if not transfer.ejectionTrajectory is None:
+        if not transfer.insertionTrajectory is None:
             transfer.adjust_end_orbit_mo()
     else:
         transfer.genetic_refine()
@@ -1537,7 +1537,7 @@ def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, displayType,
     # get the appropriate values according to user input
     if displayType == 'total':
         dV = porkTable.totalDeltaV
-        minDV = porkTable.get_best_transfer().get_total_delta_V()
+        minDV = porkTable.get_best_transfer().get_total_delta_v()
     elif displayType == 'eject':
         dV = porkTable.ejectionDeltaV
         minDV = np.amin(porkTable.ejectionDeltaV)
@@ -1546,7 +1546,7 @@ def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, displayType,
         minDV = np.amin(porkTable.insertionDeltaV)
     else:
         dV = porkTable.totalDeltaV
-        minDV = porkTable.get_best_transfer().get_total_delta_V()
+        minDV = porkTable.get_best_transfer().get_total_delta_v()
         
     # prep plot data
     bs = 1.1        # exponent base for contour levels
@@ -1683,7 +1683,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
                   "{:.2f}".format(chosenTransfer.phaseAngle*180/math.pi)+'°';
     
     totalDVString = '**Total Δv:** ' +                                      \
-                    "{:.2f}".format(chosenTransfer.get_total_delta_V()) +   \
+                    "{:.2f}".format(chosenTransfer.get_total_delta_v()) +   \
                     ' m/s';
     
     transferOrbitString = '**Transfer Orbit:**\n' +                         \
@@ -2103,7 +2103,13 @@ def create_orbits_from_persistence_file(persistenceFile, system):
         if 'IDENT' in list(sfsVessel['ORBIT'].keys()):
             primName = sfsVessel['ORBIT']['IDENT']
             primName = primName.replace('Squad/','')
-            prim = [bd for bd in system if bd.name == primName][0]
+            prim = [bd for bd in system if bd.name == primName]#[0]
+            if len(prim) < 1:
+                print(primName)
+                continue
+            else:
+                prim = prim[0]
+            
         else:
             primRef = float(sfsVessel['ORBIT']['REF'])
             prim = [bd for bd in system if bd.ref == primRef][0]
