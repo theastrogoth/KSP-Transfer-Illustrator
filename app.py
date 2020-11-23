@@ -180,7 +180,7 @@ app.layout = html.Div(id='kspti-body', children=[
                         ),
                     dcc.Checklist(
                         id = 'cheapEndOrbit-checklist',
-                        value = ['True'],
+                        value = [],
                         options=[
                             {'label': 'Cheapest ending orbit',
                              'value': 'True'},
@@ -195,7 +195,7 @@ app.layout = html.Div(id='kspti-body', children=[
                         ),
                     dcc.Checklist(
                         id = 'matchMo-checklist',
-                        value = [],
+                        value = ['True'],
                         options=[
                             {'label': 'Match starting mean anomaly and epoch',
                              'value': 'True'}
