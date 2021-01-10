@@ -458,11 +458,21 @@ class Transfer:
                 self.insertionTrajectory.get_state_vector(                  \
                     self.startTime + self.flightTime)[0];
         
+        # Fifth case: starting orbit is around a moon, and ending orbit is
+        # around a planet that is not the primary of the first moon
+        
+        # Sixth case: starting orbit is around a planet, and ending orbit is
+        # around a moon of a different planet
+        
+        # Seventh case: starting and ending orbits are around moons of two
+        # different planets.
+        
         # Adjust phase angle to be within the range [-pi, pi]
         if self.phaseAngle < -math.pi:
             self.phaseAngle = self.phaseAngle + 2*math.pi
         elif self.phaseAngle > math.pi:
             self.phaseAngle = self.phaseAngle - 2*math.pi
+    
     
     def get_ejection_details(self, tol = 0.1, maxIt = 50):
         """Get ejection trajectory with burn details."""
@@ -827,7 +837,7 @@ class Transfer:
     
     
     def match_start_mean_anomaly(self, tol = 0.1, maxIt = 20):
-        if self.ejectionTrajectory is None:
+        if self.ejectionTrajectory is None or self.cheapStartOrb:
             self.genetic_refine()
             return
         self.startOrbit = copy(self.originalStartOrbit)
@@ -838,6 +848,7 @@ class Transfer:
             it = it+1
             
             if it>maxIt:
+                print('start match fail')
                 self.startTime = originalStartTime
                 self.genetic_refine()
                 return
@@ -865,6 +876,49 @@ class Transfer:
                 dMeanAnom = dMeanAnom + math.copysign(2*math.pi, -dMeanAnom)
                 
             dT = self.startOrbit.get_period() * dMeanAnom / (2*math.pi)
+            err = norm(burnPos-orbPos)
+        
+        return
+    
+    
+    def match_end_mean_anomaly(self, tol = 0.1, maxIt = 20):
+        if self.insertionTrajectory is None or self.cheapEndOrb:
+            self.genetic_refine()
+            return
+        self.endOrbit = copy(self.originalEndOrbit)
+        originalFlightTime = self.flightTime
+        it = 0
+        err = tol+1
+        while abs(err) > tol:
+            it = it+1
+            
+            if it>maxIt:
+                print('end match fail')
+                self.flightTime = originalFlightTime
+                self.genetic_refine()
+                return
+            
+            if it > 1:
+                self.flightTime = self.flightTime + dT
+                gen = self.genetic_refine()
+                if gen is None:
+                    break
+            
+            burnTime = self.get_arrival_burn_time()
+            orbPos = self.endOrbit.get_state_vector(burnTime)[0]
+            burnPos = self.insertionTrajectory.get_state_vector(burnTime)[0]
+            
+            burnTrueAnom = self.endOrbit.get_angle_in_orbital_plane(        \
+                    self.endOrbit.get_time(0), burnPos);
+            burnMeanAnom = self.endOrbit.get_mean_anomaly(                  \
+                self.endOrbit.get_time(burnTrueAnom))
+            orbMeanAnom = self.endOrbit.get_mean_anomaly(burnTime)
+            dMeanAnom = burnMeanAnom - orbMeanAnom
+            
+            while abs(dMeanAnom) > math.pi:
+                dMeanAnom = dMeanAnom + math.copysign(2*math.pi, -dMeanAnom)
+                
+            dT = self.endOrbit.get_period() * dMeanAnom / (2*math.pi)
             err = norm(burnPos-orbPos)
         
         return

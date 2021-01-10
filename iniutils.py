@@ -64,6 +64,8 @@ def dict_to_body(body_dict, system_list):
     name = body_dict['name']
     mu = float(body_dict['gm']) * 1E9
     eqr = float(body_dict['radius']) * 1000
+    rotPeriod = float(body_dict['rotperiod'])
+    rotIni = float(body_dict['rotini']) * pi/180
     
     a = float(body_dict['sma']) * 1000 
     ecc = float(body_dict['ecc'])
@@ -88,7 +90,7 @@ def dict_to_body(body_dict, system_list):
     
     ref = int(body_dict['id'])
     
-    return Body(name, eqr, mu, None, orb, ref, None, color)
+    return Body(name, eqr, mu, None, rotPeriod, rotIni, orb, ref, None, color)
 
 def dicts_to_system(system_dicts):
     system = []
@@ -115,7 +117,6 @@ def sort_system(unsortedSystem):
     sortedSystem = []
     for bd in unsortedSystem:
         bd.sort_satellites()
-        # print([sat.name for sat in bd.satellites])
     
     try:
         sun = [bd for bd in unsortedSystem if bd.name == 'Sun'][0]
@@ -146,6 +147,8 @@ def system_to_ini(system, path=None):
             f.write('mean = 0\n')
             f.write('gm = ' + str(bd.mu / 1E9) + '\n')
             f.write('radius = ' + str(bd.eqr / 1000) + '\n')
+            f.write('rotperiod = ' + str(bd.rotPeriod) + '\n')
+            f.write('rotini = ' + str(bd.rotIni*180/pi) + '\n')
             f.write('parent = \n')
             f.write('parentID = -1\n')
             f.write('name = ' + bd.name + '\n')
@@ -160,6 +163,8 @@ def system_to_ini(system, path=None):
             f.write('mean = ' + str(bd.orb.mo *180/pi)+'\n')
             f.write('gm = ' + str(bd.mu / 1E9) + '\n')
             f.write('radius = ' + str(bd.eqr / 1000) + '\n')
+            f.write('rotperiod = ' + str(bd.rotPeriod) + '\n')
+            f.write('rotini = ' + str(bd.rotIni*180/pi) + '\n')
             f.write('parent = ' + bd.orb.prim.name + '\n')
             f.write('parentID = ' + str(bd.orb.prim.ref) + '\n' )
             f.write('name = ' + bd.name + '\n')
@@ -172,24 +177,4 @@ def system_to_ini(system, path=None):
     
     return
 
-import jsonpickle
-from copy import deepcopy
 
-infile = open('kerbol_system.json','r')
-system = jsonpickle.decode(infile.read())
-infile.close
-
-orb = deepcopy(system[4].orb)
-orb.prim = system[4].orb.prim
-newBody = Body('Test', 
-               system[4].eqr,
-               system[4].mu,
-               None,
-               orb,
-               111,
-               None,
-               (200,200,200))
-newBody.orb.mo = 0
-
-system.append(newBody)
-system = sort_system(system)

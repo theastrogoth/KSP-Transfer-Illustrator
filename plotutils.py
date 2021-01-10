@@ -9,6 +9,7 @@ from orbit import Orbit
 from body import Body
 from transfer import Transfer
 from prktable import PorkchopTable
+from imageutils import image_colormap, map_url, get_pixel_values
 
 #%% misc functions
 
@@ -118,6 +119,37 @@ def burn_components_to_absolute(prograde, normal, radial, position, velocity,
     
     burnDV = prograde*progradeDir + normal*normalDir + radial*radialDir
     return burnDV
+
+def cartesian_to_spherical(xyz):
+    spherical = xyz*0
+    xy = xyz[:,0]**2 + xyz[:,1]**2
+    spherical[:,0] = np.sqrt(xy + xyz[:,2]**2)
+    spherical[:,1] = np.arctan2(xyz[:,1], xyz[:,0])
+    spherical[:,2] = np.arctan2(xyz[:,2], np.sqrt(xy)) # for elevation angle defined from XY-plane up
+    return spherical
+
+def spherical_to_cartesian(spherical):
+    xyz = spherical*0
+    xyz[:,0] = spherical[:,0] * np.cos(spherical[:,1]) * np.sin(spherical[:,2])
+    xyz[:,1] = spherical[:,0] * np.sin(spherical[:,1]) * np.sin(spherical[:,2])
+    xyz[:,2] = spherical[:,0] * np.cos(spherical[:,2])
+    return xyz
+
+def lat_lon_to_spherical(lon, lat, radius):
+    
+    # xs = radius * np.cos(lon) * np.transpose(np.cos(lat))
+    # ys = radius * np.sin(lon) * np.transpose(np.cos(lat))
+    # zs = radius * lon/lon * np.transpose(np.sin(lat))
+    # return np.reshape(xs, xs.size), np.reshape(ys, ys.size), np.reshape(zs, zs.size)
+    
+    lat, lon = np.meshgrid(lat, lon)
+    
+    xs = radius * np.cos(lon) * np.cos(lat)
+    ys = radius * np.sin(lon) * np.cos(lat)
+    zs = radius * np.sin(lat)
+    
+    return xs, ys, zs
+
 
 #%% porkchop plot functions
 
@@ -385,7 +417,7 @@ def add_nodes(figure, orb, size = 4, color = (0,255,0)):
                                   hoverinfo = 'skip',
                                   ))
 
-def add_primary(figure, bd, surf = True):
+def add_primary(figure, bd, surf = True, lat = None, lon = None, pix = None):
     
     fadedColor = fade_color(bd.color)
     
@@ -398,7 +430,26 @@ def add_primary(figure, bd, surf = True):
     y = bd.eqr * np.cos(theta) * np.cos(phi)
     z = bd.eqr * np.sin(theta)
     
-    if surf:
+    if not lat is None:
+        xs, ys, zs = lat_lon_to_spherical(lon, lat, bd.eqr)
+        cmap, mapDict, pix = image_colormap(pix, rounded=True)
+        val = []
+        for pick in pix:
+            val.append(mapDict[pick])
+        # val.reverse()
+        
+        figure.add_trace(go.Surface(
+                                    x=xs,
+                                    y=ys,
+                                    z=-zs,
+                                    colorscale=cmap,
+                                    surfacecolor=np.transpose(np.reshape(val,xs.shape)),
+                                    showscale=False,
+                                    name = bd.name,
+                                    showlegend = False,
+                                    hovertemplate = "Central body"
+                                    ))
+    elif surf:
         figure.add_trace(go.Mesh3d(
                                     x = np.ndarray.flatten(x),
                                     y = np.ndarray.flatten(y),
@@ -717,7 +768,7 @@ def add_reference_line(figure, lim, style='dash'):
         showlegend = False,
         ))
 
-def plot_system(fig, centralBody, t, dateFormat, displays):
+def plot_system(fig, centralBody, t, dateFormat, displays, surfTexture='Solid'):
     
     # add all orbits
     if ('orbits' in displays):
@@ -739,7 +790,17 @@ def plot_system(fig, centralBody, t, dateFormat, displays):
     
     # add the primary body at the origin
     add_primary(fig, centralBody, False)
-    if '3dSurfs' in displays:
+    if (not surfTexture == 'Solid') and ('3dSurfs' in displays):
+        try:
+            mapURL = map_url(centralBody.name, surfTexture+'Small')
+            pix = get_pixel_values(mapURL, True)[0]
+            bodyTheta = 2*np.pi/centralBody.rotPeriod * t + centralBody.rotIni
+            lat = np.array([np.linspace(-np.pi/2, np.pi/2, 512)])
+            lon = np.array([np.linspace(-np.pi, np.pi, 512)]) + bodyTheta
+            add_primary(fig, centralBody, True, lat, lon, pix)
+        except:
+            add_primary(fig, centralBody, True)
+    elif '3dSurfs' in displays:
         add_primary(fig, centralBody, True)
     
     # add trace for primary body's position centered at the specified time
@@ -834,3 +895,122 @@ def blank_plot():
         plot_bgcolor="rgb(30, 30, 30)",
         )
     return fig
+
+#%% surface plot
+def project_to_surface(orb, times):
+    """Takes list of positions and times and projects to body's surface."""
+    
+    bd = orb.prim
+    positions = orb.get_positions(times=times)[0]
+    
+    bodyThetas = 2*np.pi/bd.rotPeriod * np.array(times) + bd.rotIni
+    sphericalPositions = cartesian_to_spherical(positions)
+    
+    surfaceCoords = sphericalPositions[:,1:]
+    for ii in range(len(times)):
+        longitude = surfaceCoords[ii,0] - Orbit.map_angle(bodyThetas[ii])
+        count = 0
+        while abs(longitude) > np.pi:
+            longitude =  longitude - np.sign(longitude) * 2*np.pi
+            count = count+1
+            if count > 10:
+                print('Why?')
+                break
+        surfaceCoords[ii,0] = longitude
+    
+    return surfaceCoords
+
+def add_orbit_surface_projection(fig, orb, startTime, endTime=None, numPts=1001,
+                                 name = None,
+                                 color=(255, 255, 255),
+                                 symbol = 'circle', markerSize = 4,
+                                 borderColor = None):
+    
+    if color is None:
+        color = (255, 255, 255)
+    
+    if borderColor is None:
+        borderDict = dict()
+    else:
+        borderDict = dict(color=borderColor,
+                          width=2)
+    if endTime is None:
+        times = [startTime]
+        colorscale = [[0.0, "rgb"+str(color)],
+                      [1.0, "rgb"+str(color)]]
+    else:
+        times = np.linspace(startTime, endTime, numPts)
+        colorscale = [[0.0, "rgb"+str(color)],
+                      [1.0, "rgb"+str(fade_color(color, 3))]]
+    longLats = project_to_surface(orb, times)
+    
+    fig.add_trace(go.Scatter(x=longLats[:,0]*180/np.pi, 
+                             y=longLats[:,1]*180/np.pi,
+                             name = name,
+                             mode='markers',
+                             marker = dict(
+                                 symbol = symbol,
+                                 size = markerSize,
+                                 line = borderDict,
+                                 color = times,
+                                 colorscale = colorscale),
+                             hovertemplate =                                \
+                                 "Longitude = %{x:.6f} °" + "<br>" +    \
+                                 "Latitude = %{y:.6f} m/s" + "<br>" +  \
+                                 "UT = %{marker.color:.2f} s",
+                             ))
+
+def set_surface_projection_layout(fig, mapUrl=None, uirev=None):
+    
+    if uirev is None:
+        uirev = 'test'
+    
+    fig.update_layout(
+            xaxis = dict(range=[-180, 180]),
+            yaxis = dict(range=[-90, 90]),
+            xaxis_title='Longitude (°)',
+            yaxis_title='Latitude (°)',
+            font=dict(
+                    color="rgb(200, 200, 200)"
+                    )
+                )
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=10, b=30),
+        paper_bgcolor="rgba(30, 30, 30, 0)",
+        plot_bgcolor="rgba(30, 30, 30, 0)",
+        xaxis = dict(
+            tickmode = 'array',
+            tickvals = [-180, -150, -120, -90, -60, -30, 0,                 \
+                        30, 60, 90, 120, 150, 180],
+            ticktext = ['180° W', '150° W', '120° W', '90° W', '60° W', '30° W',
+                        '0° E', '30° E', '60° E', '90° E', '120° E', '150° E', '180° E'],
+            ),
+        yaxis = dict(
+            tickmode = 'array',
+            tickvals = [-90, -60, -30, 0, 30, 60, 90],
+            ticktext = ['90° S', '60° S', '30° S', '0° N', '30° N', '60° N', '90° N'],
+            ),
+        uirevision = uirev
+        )
+    fig.update_xaxes(color = "rgb(200, 200, 200)",
+                     gridcolor="rgb(200, 200, 200)")
+    fig.update_yaxes(color = "rgb(200, 200, 200)",
+                     gridcolor="rgb(200, 200, 200)")
+    
+    if not mapUrl is None:
+        try:
+            fig.update_layout(
+                images = [dict(
+                    x=-180,
+                    sizex=360,
+                    y=90,
+                    sizey=180,
+                    xref="x",
+                    yref="y",
+                    opacity=1.0,
+                    layer="below",
+                    sizing="stretch",
+                    source=mapUrl)
+                    ])
+        except:
+            pass

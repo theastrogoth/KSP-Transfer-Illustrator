@@ -194,10 +194,18 @@ app.layout = html.Div(id='kspti-body', children=[
                             ],
                         ),
                     dcc.Checklist(
-                        id = 'matchMo-checklist',
-                        value = ['True'],
+                        id = 'matchStartMo-checklist',
+                        value = [],
                         options=[
                             {'label': 'Match starting mean anomaly and epoch',
+                             'value': 'True'}
+                            ],
+                        ),
+                    dcc.Checklist(
+                        id = 'matchEndMo-checklist',
+                        value = [],
+                        options=[
+                            {'label': 'Match ending mean anomaly and epoch',
                              'value': 'True'}
                             ],
                         ),
@@ -933,12 +941,7 @@ def add_edit_system(iniFile, nClicks, allSystems, radioOptions,
                            ref, None, (red,green,blue)
                            )
         system.append(newBody)
-        print([sat.name for sat in system[0].satellites])
         system = sort_system(system)
-        print([sat.name for sat in system[0].satellites])
-        print(prim)
-        print(newBody.orb.prim)
-        print(system[0])
         allSystems[3] = jsonpickle.encode(system)
         
          # create downloadable .ini file bodies in system
@@ -1419,9 +1422,11 @@ def update_porkchop_data(startTimeRange, flightTimeRange,
     [Input('porkchop-div','children'),
      Input('porkchop-graph','clickData')],
     [State('dateFormat-div','children'),
-     State('matchMo-checklist','value')]
+     State('matchStartMo-checklist','value'),
+     State('matchEndMo-checklist','value')]
     )
-def update_chosen_tranfser(porkTable, clickData, dateFormat, matchMo):
+def update_chosen_tranfser(porkTable, clickData, dateFormat,
+                           matchStartMo, matchEndMo):
     
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -1446,12 +1451,23 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat, matchMo):
         flightTime = flightDays * 3600 * day
         transfer = porkTable.get_chosen_transfer(startTime, flightTime)
     
+    # adjust beginnin/end position/time
+    matchedMo = False
     # adjust start orbit to match burn position or vice versa
-    if matchMo:
+    if matchStartMo:
+        matchedMo = True
         transfer.match_start_mean_anomaly()
-        if not transfer.insertionTrajectory is None:
+        if (not transfer.insertionTrajectory is None) and (not matchEndMo):
             transfer.adjust_end_orbit_mo()
-    else:
+    
+    # adjust end orbit to match burn position or vice versa
+    if matchEndMo:
+        matchedMo = True
+        transfer.match_end_mean_anomaly()
+        if (not transfer.ejectionTrajectory is None) and (not matchEndMo):
+            transfer.adjust_end_orbit_mo()
+    
+    if not matchedMo:
         transfer.genetic_refine()
         if not transfer.ejectionTrajectory is None:
             transfer.adjust_start_orbit_mo()
@@ -2105,7 +2121,6 @@ def create_orbits_from_persistence_file(persistenceFile, system):
             primName = primName.replace('Squad/','')
             prim = [bd for bd in system if bd.name == primName]#[0]
             if len(prim) < 1:
-                print(primName)
                 continue
             else:
                 prim = prim[0]

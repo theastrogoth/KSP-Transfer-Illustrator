@@ -345,12 +345,12 @@ class Orbit:
         """Returns the sidereal period of the orbit.
         
         Returns:
-            orbital period (seconds)
+            sidereal orbital period (seconds)
         """
         
         # manually set pi in attempt to improve accuracy with KSP
-        pi = 3.14159265358979
-        # pi = math.pi
+        # pi = 3.14159265358979
+        pi = math.pi
         
         if self.period is None:
             self.period = 2*pi * math.sqrt((abs(self.a)**3)/self.prim.mu)
@@ -797,49 +797,6 @@ class Orbit:
                 return None, None
         else:
             return None, None
-        
-    def get_nu_at_soi(self):
-        
-        if self.prim.soi is None:
-            return None
-        
-        try:
-            nu = math.acos(1/self.ecc * (self.a*(1-self.ecc**2)/            \
-                                         self.prim.soi - 1));
-        except ValueError:
-            nu = math.acos(
-                  math.copysign(1, 1/self.ecc * (self.a*(1-self.ecc**2)/    \
-                                                 self.prim.soi - 1)));
-        return nu
-    
-    def get_flight_path_angle_at_nu(self, nu):
-        
-        if 1+self.ecc*math.cos(nu) == 0:
-            phi = math.pi/2
-        else:
-            phi = math.atan(self.ecc*math.sin(nu) / (1+self.ecc*math.cos(nu)));
-        
-        return phi
-    
-    def get_flight_angle_at_soi(self, isOut=False):
-        
-        if self.prim.soi is None:
-            return None
-        
-        # true anomaly
-        nu = self.get_nu_at_soi()
-        
-        # flight path angle
-        phi = self.get_flight_path_angle_at_nu(nu)
-        
-        # angle from periapsis
-        delta = abs(nu-phi)
-        # delta = math.asin(1/ecc) # assumes soi is infinite
-        
-        if isOut:
-            return -delta
-        else:
-            return delta
     
     def __str__(self):
         string = '  Semi-major axis: ' + "{:.2f}".format(self.a) + ' m\n' + \
