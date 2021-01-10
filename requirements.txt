@@ -21,3 +21,5 @@ six==1.15.0
 Werkzeug==1.0.1
 zipp==3.1.0
 scipy
+pillow
+requests
