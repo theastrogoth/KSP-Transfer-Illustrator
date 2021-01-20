@@ -303,6 +303,10 @@ def add_orbit(figure, orb, startTime, endTime=None, numPts=201,
     pos = np.transpose(pos)
     vel = np.transpose(vel)
     
+    if orb.ecc<1:
+        for ii, m in enumerate(meanAnoms):
+            meanAnoms[ii] = Orbit.map_angle(m)
+    
     if not dateFormat is None:
         day = dateFormat['day']
         year = dateFormat['year']
@@ -313,15 +317,19 @@ def add_orbit(figure, orb, startTime, endTime=None, numPts=201,
                           np.floor(times%(3600*day*year)/(day*3600)+1),
                           np.floor((times%(3600*day))/3600),
                           np.floor(((times%(3600*day))%3600)/60),
-                          np.floor(((times%(3600*day))%3600)%60)),
+                          np.floor(((times%(3600*day))%3600)%60),
+                          times,
+                          meanAnoms),
                           axis=1);
         hoverLabel = "r = %{customdata[0]:.3e} km" + "<br>" +\
-                     "v = %{customdata[1]:.3e} m/s" + "<br>" +\
+                     "v = %{customdata[1]:.3e} m/s" + "<br>" + "<br>" +\
                      "Year %{customdata[2]:.0f}, " +\
                      "Day %{customdata[3]:.0f} " +\
                      "%{customdata[4]:0>2d}" + ":" +\
                      "%{customdata[5]:0>2d}" + ":" +\
-                     "%{customdata[6]:0>2d}" + "<br>" + "<br>" +\
+                     "%{customdata[6]:0>2d}" + "<br>" +\
+                     "UT: %{customdata[7]:.3f} s" + "<br>" +\
+                     "Mean Anomaly: %{customdata[8]:.5f} rad" + "<br>" + "<br>" +\
                      "Semi-major Axis = " + "{:.0f}".format(orb.a) + " m" + "<br>" +\
                      "Eccentricity = " + "{:.4f}".format(orb.ecc) + "<br>" +\
                      "Inclination = " + "{:.4f}".format(orb.inc*180/math.pi) + "°" + "<br>" +\

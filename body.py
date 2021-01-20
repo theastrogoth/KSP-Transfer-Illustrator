@@ -44,7 +44,8 @@ class Body:
             self.satellites = satellites
     
     def set_soi(self, sma, mu, muPrim):
-        self.soi = sma * (mu/muPrim)**(2/5)
+        if not mu is None:
+            self.soi = sma * (mu/muPrim)**(2/5)
     
     def add_to_primary(self):
         """Adds the body to its primary's list of satellites."""

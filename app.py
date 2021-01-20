@@ -17,10 +17,9 @@ import math
 import numpy as np
 from orbit import Orbit
 from body import Body
-from vessel import Vessel
+from craft import Craft
 from transfer import Transfer
 from prktable import PorkchopTable
-
 
 DOWNLOAD_DIRECTORY = "/tmp/app_generated_files"
 
@@ -505,7 +504,7 @@ app.layout = html.Div(id='kspti-body', children=[
                         ),
                     html.Label('Select orbit to add:'),
                     dcc.Dropdown(
-                        id='persistenceVessels-dropdown',
+                        id='persistenceCrafts-dropdown',
                         ),
                     html.Button(children = 'Add Starting Orbit',
                                 className='control-button',
@@ -521,7 +520,9 @@ app.layout = html.Div(id='kspti-body', children=[
             dcc.Tab(
                 label='Instructions',
                 value='instruct',
-                children = html.Div(className='control-tab', children = [
+                children = html.Div(className='control-tab', 
+                                    style = {"maxHeight":"950px", "overflowY": "auto"},
+                                    children = [
                     html.H3('KSP Transfer Illustrator'),
                     dcc.Markdown('''
                                  The KSP Transer Illustrator app calculates 
@@ -688,14 +689,16 @@ app.layout = html.Div(id='kspti-body', children=[
                 html.Div(id='flight-times-div', style={'display': 'none'}),
                 ]),
             ]),
-        html.Div([
-            html.Div(id='failedConvergenceWarning-div',
-                     style={'display': 'none'},
-                     children=[
-                         dcc.Markdown(id = 'failedConvergence-markdown')]),
+        html.Div(id='transferDetails-title',
+                 style={'display': 'none'},
+                 children = [html.H3('Selected Transfer Details')]),
+        html.Div(id='failedConvergenceWarning-div',
+                 style={'display': 'none'},
+                 children=[
+                     dcc.Markdown(id = 'failedConvergence-markdown')]),
+        html.Div(style={"maxHeight": "400px", "overflowY": "auto"}, children = [
             html.Div(id='transferDetails-div', style={'display': 'none'},
                      children=[
-                         html.H3('Selected Transfer Details'),
                          dcc.Markdown(id = 'departure-markdown'),
                          dcc.Markdown(id = 'arrival-markdown'),
                          dcc.Markdown(id = 'flightTime-markdown'),
@@ -718,7 +721,7 @@ app.layout = html.Div(id='kspti-body', children=[
                      children =[
                          dcc.Markdown(id = 'encounterTime-markdown'),
                          ]),
-            html.Div(id='orbitDetails-div', 
+            html.Div(id='orbitDetails-div',
                      children = [
                          dcc.Markdown(id = 'transferOrbit-markdown',
                                       style={"white-space": "pre"}),
@@ -749,75 +752,98 @@ app.layout = html.Div(id='kspti-body', children=[
                 ],
             labelStyle={'display': 'inline-block'},
             ),
-        html.Div(id='transfer-plot-div', style={'display': 'none'}, children=[
-        dcc.Loading(id='transfer-loading', type='circle', children=[
-            dcc.Markdown('**Transfer Trajectory**'),
-            dcc.Graph(
-                id='transfer-graph',
-                figure = blank_plot(),
-                ),
+        dcc.Tabs(id='plot-tabs', className='control-tabs', value='transfer', children=[
+          dcc.Tab(
+              id='ejection-plot-tab',
+              label='Ejection',
+              value='ejection',
+              disabled = True,
+              children = html.Div(className='control-tab', children = [
+            html.Div(id='ejection-plot-div', style={'display': 'none'}, children=[
+            dcc.Loading(id='ejection-loading', type='circle', children=[
+                dcc.Markdown('**Ejection Trajectory**'),
+                dcc.Graph(
+                    id='ejection-graph',
+                    figure = blank_plot(),
+                    ),
+                    ]),
+                dcc.Slider(
+                    id='ejection-slider',
+                    min=0,
+                    max=1,
+                    step=1,
+                    marks = dict(),
+                    value=0,
+                    included=False,
+                    updatemode='mouseup'
+                    ),
+                html.A(children=html.Button('Download', className='control-button'),
+                       id='ejectionPlot-download',
+                       download="EjectionPlot.html", href="",
+                       target="_blank"),
                 ]),
-            dcc.Slider(
-                id='transfer-slider',
-                min=0,
-                max=1,
-                step=1,
-                marks = dict(),
-                value=0,
-                included=False,
-                updatemode='mouseup'
-                ),
-            html.A(children=html.Button('Download', className='control-button'),
-                   id='transferPlot-download',
-                   download="TransferPlot.html", href="",
-                   target="_blank"),
-            ]),
-        html.Div(id='ejection-plot-div', style={'display': 'none'}, children=[
-        dcc.Loading(id='ejection-loading', type='circle', children=[
-            dcc.Markdown('**Ejection Trajectory**'),
-            dcc.Graph(
-                id='ejection-graph',
-                figure = blank_plot(),
-                ),
+            ])),
+          dcc.Tab(
+              id='transfer-plot-tab',
+              label='Transfer',
+              value='transfer',
+              disabled = True,
+              children = html.Div(className='control-tab', children = [
+            html.Div(id='transfer-plot-div', style={'display': 'none'}, children=[
+            dcc.Loading(id='transfer-loading', type='circle', children=[
+                dcc.Markdown('**Transfer Trajectory**'),
+                dcc.Graph(
+                    id='transfer-graph',
+                    figure = blank_plot(),
+                    ),
+                    ]),
+                dcc.Slider(
+                    id='transfer-slider',
+                    min=0,
+                    max=1,
+                    step=1,
+                    marks = dict(),
+                    value=0,
+                    included=False,
+                    updatemode='mouseup'
+                    ),
+                html.A(children=html.Button('Download', className='control-button'),
+                       id='transferPlot-download',
+                       download="TransferPlot.html", href="",
+                       target="_blank"),
                 ]),
-            dcc.Slider(
-                id='ejection-slider',
-                min=0,
-                max=1,
-                step=1,
-                marks = dict(),
-                value=0,
-                included=False,
-                updatemode='mouseup'
-                ),
-            html.A(children=html.Button('Download', className='control-button'),
-                   id='ejectionPlot-download',
-                   download="EjectionPlot.html", href="",
-                   target="_blank"),
-            ]),
-        html.Div(id='insertion-plot-div', style={'display': 'none'}, children=[
-        dcc.Loading(id='insertion-loading', type='circle', children=[
-            dcc.Markdown('**Insertion Trajectory**'),
-            dcc.Graph(
-                id='insertion-graph',
-                figure = blank_plot(),
-                ),
+            ])),
+          dcc.Tab(
+              id='insertion-plot-tab',
+              label='Insertion',
+              value='insertion',
+              disabled = True,
+              children = html.Div(className='control-tab', children = [
+            html.Div(id='insertion-plot-div', style={'display': 'none'}, children=[
+            dcc.Loading(id='insertion-loading', type='circle', children=[
+                dcc.Markdown('**Insertion Trajectory**'),
+                dcc.Graph(
+                    id='insertion-graph',
+                    figure = blank_plot(),
+                    ),
+                    ]),
+                dcc.Slider(
+                    id='insertion-slider',
+                    min=0,
+                    max=1,
+                    step=1,
+                    marks = dict(),
+                    value=0,
+                    included=False,
+                    updatemode='mouseup'
+                    ),
+                html.A(children=html.Button('Download',className='control-button'),
+                       id='insertionPlot-download',
+                       download="InsertionPlot.html", href="",
+                       target="_blank"),
                 ]),
-            dcc.Slider(
-                id='insertion-slider',
-                min=0,
-                max=1,
-                step=1,
-                marks = dict(),
-                value=0,
-                included=False,
-                updatemode='mouseup'
-                ),
-            html.A(children=html.Button('Download',className='control-button'),
-                   id='insertionPlot-download',
-                   download="InsertionPlot.html", href="",
-                   target="_blank"),
-            ]),
+            ])),
+          ]),
         ]),
     # Hidden Divs to store data
     html.Div(id='dateFormat-div', style = {'display': 'none'},
@@ -830,7 +856,7 @@ app.layout = html.Div(id='kspti-body', children=[
                  jsonpickle.encode([kerbol_system[0]])]),
     html.Div(id='system-div', style={'display': 'none'}, 
              children=jsonpickle.encode(kerbol_system)),
-    html.Div(id='persistenceVessels-div', style={'display': 'none'},
+    html.Div(id='persistenceCrafts-div', style={'display': 'none'},
              children = []),
     html.Div(id='starta-div', style={'display': 'none'},
              children = [700000]),
@@ -1627,7 +1653,8 @@ def update_porkchop_plot(porkTable, chosenTransfer, dateFormat, displayType,
     return fig
 
 @app.callback(
-    [Output('failedConvergenceWarning-div','style'),
+    [Output('transferDetails-title','style'),
+     Output('failedConvergenceWarning-div','style'),
      Output('failedConvergence-markdown', 'children'),
      Output('transferDetails-div','style'),
      Output('departure-markdown','children'),
@@ -1661,7 +1688,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
                dash.no_update, dash.no_update, dash.no_update,              \
                dash.no_update, dash.no_update, dash.no_update,              \
                dash.no_update, dash.no_update, dash.no_update,              \
-               dash.no_update;
+               dash.no_update, dash.no_update;
                
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     # grab day and year formats
@@ -1803,7 +1830,7 @@ def update_transfer_details(chosenTransfer, dateFormat):
         insertionOrbitString = ''
     
     
-    return convergenceFailStyle, failString,                                \
+    return  None, convergenceFailStyle, failString,                         \
             transferStyle, departureString, arrivalString, flightTimeString,\
             phaseString, totalDVString, departureDVString, arrivalDVString, \
             planeChangeStyle, planeChangeDVString, planeChangeTimeString,   \
@@ -1811,13 +1838,36 @@ def update_transfer_details(chosenTransfer, dateFormat):
             insertionStyle, encounterTimeString,                            \
             transferOrbitString, transferOrbitPCString, ejectionOrbitString,\
             insertionOrbitString;
-            
-            
+
+@app.callback(
+    [Output('plot-tabs', 'value')],
+    [Input('transfer-div', 'children')],
+    [State('plot-tabs', 'value')]
+    )
+def update_selected_tab(chosenTransfer, prevVal):
+    
+    if chosenTransfer is None or prevVal=='transfer':
+        return dash.no_update
+    
+    chosenTransfer = jsonpickle.decode(chosenTransfer)
+    
+    if prevVal == 'ejection':
+        if chosenTransfer.ejectionTrajectory is None:
+            return ['transfer']
+        else:
+            return dash.no_update
+    
+    if prevVal == 'insertion':
+        if chosenTransfer.insertionTrajectory is None:
+            return ['transfer']
+        else:
+            return dash.no_update
 
 @app.callback(
     [Output('transfer-graph', 'figure'),
      Output('transfer-plot-div','style'),
-     Output('transferPlot-download', 'href')],
+     Output('transferPlot-download', 'href'),
+     Output('transfer-plot-tab', 'disabled')],
     [Input('transfer-div', 'children'),
      Input('transfer-slider', 'value'),
      Input('display-checklist', 'value'),
@@ -1828,7 +1878,7 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
                          dateFormat, prevFig):
     
     if chosenTransfer is None:
-        return prevFig, dash.no_update, ""
+        return prevFig, dash.no_update, "", True
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     
@@ -1889,9 +1939,17 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
         
         # if the target orbit is around the primary body, add it
         if (chosenTransfer.endOrbit.prim == chosenTransfer.transferOrbit.prim):
-            add_orbit(fig, chosenTransfer.endOrbit, startTime, endTime,     \
-                      201, dateFormat, name = 'Target', apses = apses,      \
-                      nodes = nodes);
+            if chosenTransfer.endOrbit.ecc < 1:
+                add_orbit(fig, chosenTransfer.endOrbit, sliderTime,         \
+                          sliderTime + chosenTransfer.endOrbit.get_period(),\
+                          201, dateFormat, name = 'Target', apses = apses,  \
+                          nodes = nodes);
+            else:
+                add_orbit(fig, chosenTransfer.endOrbit, startTime, endTime, \
+                          201, dateFormat, name = 'Target', apses = apses,  \
+                          nodes = nodes);
+            add_body(fig, Body('Target',orb=chosenTransfer.endOrbit),       \
+                     sliderTime, False, size=4)
             if 'arrows' in displays:
                 if not chosenTransfer.ignoreInsertion:
                     if chosenTransfer.planeChange:
@@ -1909,13 +1967,13 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
         add_transfer_phase_angle(fig, chosenTransfer,                       \
                                  1.5*chosenTransfer.transferOrbit.a)
     
-    # add marker for vessel position at slider time
+    # add marker for craft position at slider time
     if (not chosenTransfer.planeChange) or                                  \
        (sliderTime < chosenTransfer.startTime + chosenTransfer.planeChangeDT):
-           vessel = Body('Vessel',0,0,0,chosenTransfer.transferOrbit)
+           craft = Body('Craft',0,0,0,0,0,chosenTransfer.transferOrbit)
     else:
-           vessel = Body('Vessel',0,0,0,chosenTransfer.transferOrbitPC)
-    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'square')
+           craft = Body('Craft',0,0,0,0,0,chosenTransfer.transferOrbitPC)
+    add_body(fig, craft, sliderTime, False, size = 4, symbol = 'square')
     
     # update the plot layout with blank axes, dark grey background, etc
     uirev = chosenTransfer.transferOrbit.prim.name
@@ -1931,12 +1989,13 @@ def update_transfer_plot(chosenTransfer, sliderTime, displays,
     fig.write_html(path)
     
     return {'data':fig.data,'layout':fig.layout}, dict(display = 'block'),  \
-           location
+           location, False
 
 @app.callback(
     [Output('ejection-graph', 'figure'),
      Output('ejection-plot-div', 'style'),
-     Output('ejectionPlot-download','href')],
+     Output('ejectionPlot-download','href'),
+     Output('ejection-plot-tab','disabled')],
     [Input('transfer-div', 'children'),
      Input('ejection-slider', 'value'),
      Input('display-checklist', 'value'),
@@ -1946,11 +2005,11 @@ def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
     if chosenTransfer is None:
-        return fig, dict(display = 'none'), ""
+        return fig, dict(display = 'none'), "", True
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     if chosenTransfer.ejectionTrajectory is None:
-        return fig, dict(display = 'none'), ""
+        return fig, dict(display = 'none'), "", True
     
     # plot system at slider time
     lim = plot_system(fig, chosenTransfer.startOrbit.prim, sliderTime,      \
@@ -1989,9 +2048,9 @@ def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
     if 'angles' in displays:
         add_ejection_angle(fig, chosenTransfer)
     
-    # add marker for vessel position at slider time
-    vessel = Body('Vessel',0,0,0,chosenTransfer.ejectionTrajectory)
-    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'square')
+    # add marker for craft position at slider time
+    craft = Body('Craft',0,0,0,0,0,chosenTransfer.ejectionTrajectory)
+    add_body(fig, craft, sliderTime, False, size = 4, symbol = 'square')
     
     # update the plot layout with blank axes, dark grey background, etc
     uirev = chosenTransfer.startOrbit.prim.name
@@ -2006,12 +2065,13 @@ def update_ejection_plot(chosenTransfer, sliderTime, displays, dateFormat):
     fig.write_html(path)
     
     return {'data':fig.data,'layout':fig.layout}, dict(display = 'block'),  \
-           location
+           location, False
 
 @app.callback(
     [Output('insertion-graph', 'figure'),
      Output('insertion-plot-div', 'style'),
-     Output('insertionPlot-download', 'href')],
+     Output('insertionPlot-download', 'href'),
+     Output('insertion-plot-tab', 'disabled')],
     [Input('transfer-div', 'children'),
      Input('insertion-slider', 'value'),
      Input('display-checklist', 'value'),
@@ -2022,11 +2082,11 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
     fig = go.Figure(layout = dict(xaxis = dict(visible=False),
                                   yaxis = dict(visible=False)))
     if chosenTransfer is None:
-        return fig, dict(display = 'none'), ""
+        return fig, dict(display = 'none'), "", True
     
     chosenTransfer = jsonpickle.decode(chosenTransfer)
     if chosenTransfer.insertionTrajectory is None:
-        return fig, dict(display = 'none'), ""
+        return fig, dict(display = 'none'), "", True
     
     # plot system at slider time
     lim = plot_system(fig, chosenTransfer.endOrbit.prim, sliderTime,        \
@@ -2057,19 +2117,29 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
         
         # add ending orbit
         if not chosenTransfer.ignoreInsertion:
-            add_orbit(fig, chosenTransfer.endOrbit,                         \
-                      burnTime - chosenTransfer.endOrbit.get_period()/2,    \
-                      burnTime + chosenTransfer.endOrbit.get_period()/2,    \
-                      201, dateFormat, apses = apses, nodes = nodes,        \
-                      name = 'Ending Orbit', style = 'dot',                 \
-                      fade = False);
+            if chosenTransfer.endOrbit.ecc < 1:
+                add_orbit(fig, chosenTransfer.endOrbit,                     \
+                         sliderTime,                                        \
+                         sliderTime + chosenTransfer.endOrbit.get_period(), \
+                         201, dateFormat, apses = apses, nodes = nodes,     \
+                         name = 'Ending Orbit', style = 'dot',              \
+                         fade = False);
+                add_body(fig, Body('Target', orb=chosenTransfer.endOrbit),  \
+                         sliderTime, surf=False, size=4);
+            else:
+                add_orbit(fig, chosenTransfer.endOrbit,                     \
+                          burnTime - chosenTransfer.endOrbit.get_period()/2,\
+                          burnTime + chosenTransfer.endOrbit.get_period()/2,\
+                          201, dateFormat, apses = apses, nodes = nodes,    \
+                          name = 'Ending Orbit', style = 'dot',             \
+                          fade = False);
             if 'arrows' in displays:
                 add_burn_arrow(fig, chosenTransfer.insertionDV, burnTime,   \
                            chosenTransfer.insertionTrajectory, dateFormat);
     
-    # add marker for vessel position at slider time
-    vessel = Body('Vessel',0,0,0,chosenTransfer.insertionTrajectory)
-    add_body(fig, vessel, sliderTime, False, size = 4, symbol = 'square')
+    # add marker for craft position at slider time
+    craft = Body('Craft',0,0,0,0,0,chosenTransfer.insertionTrajectory)
+    add_body(fig, craft, sliderTime, False, size = 4, symbol = 'square')
     
     # update the plot layout with blank axes, dark grey background, etc
     uirev = chosenTransfer.endOrbit.prim.name
@@ -2084,12 +2154,12 @@ def update_insertion_plot(chosenTransfer, sliderTime, displays, dateFormat):
     fig.write_html(path)
     
     return {'data':fig.data,'layout':fig.layout}, dict(display = 'block'),  \
-           location
+           location, False
 
 @app.callback(
-    [Output('persistenceVessels-div', 'children'),
-     Output('persistenceVessels-dropdown', 'options'),
-     Output('persistenceVessels-dropdown', 'value')],
+    [Output('persistenceCrafts-div', 'children'),
+     Output('persistenceCrafts-dropdown', 'options'),
+     Output('persistenceCrafts-dropdown', 'value')],
     [Input('persistenceFile-upload', 'contents')],
     [State('system-div', 'children')],
      prevent_initial_call=True
@@ -2103,21 +2173,21 @@ def create_orbits_from_persistence_file(persistenceFile, system):
     persistenceFile = persistenceFile.split(',')[1]
     persistenceFile = b64decode(persistenceFile).decode('utf-8')
     sfsData = parse_savefile(persistenceFile, False)
-    sfsVessels = sfsData['GAME']['FLIGHTSTATE']['VESSEL']
-    vessels = []
-    for sfsVessel in sfsVessels:
+    sfsCrafts = sfsData['GAME']['FLIGHTSTATE']['VESSEL']
+    crafts = []
+    for sfsCraft in sfsCrafts:
         
-        name = sfsVessel['name']
+        name = sfsCraft['name']
         
-        a = float(sfsVessel['ORBIT']['SMA'])
-        ecc = float(sfsVessel['ORBIT']['ECC'])
-        inc = float(sfsVessel['ORBIT']['INC'])
-        argp = float(sfsVessel['ORBIT']['LPE'])
-        lan = float(sfsVessel['ORBIT']['LAN'])
-        mo = float(sfsVessel['ORBIT']['MNA'])
-        epoch = float(sfsVessel['ORBIT']['EPH'])
-        if 'IDENT' in list(sfsVessel['ORBIT'].keys()):
-            primName = sfsVessel['ORBIT']['IDENT']
+        a = float(sfsCraft['ORBIT']['SMA'])
+        ecc = float(sfsCraft['ORBIT']['ECC'])
+        inc = float(sfsCraft['ORBIT']['INC'])
+        argp = float(sfsCraft['ORBIT']['LPE'])
+        lan = float(sfsCraft['ORBIT']['LAN'])
+        mo = float(sfsCraft['ORBIT']['MNA'])
+        epoch = float(sfsCraft['ORBIT']['EPH'])
+        if 'IDENT' in list(sfsCraft['ORBIT'].keys()):
+            primName = sfsCraft['ORBIT']['IDENT']
             primName = primName.replace('Squad/','')
             prim = [bd for bd in system if bd.name == primName]#[0]
             if len(prim) < 1:
@@ -2126,16 +2196,16 @@ def create_orbits_from_persistence_file(persistenceFile, system):
                 prim = prim[0]
             
         else:
-            primRef = float(sfsVessel['ORBIT']['REF'])
+            primRef = float(sfsCraft['ORBIT']['REF'])
             prim = [bd for bd in system if bd.ref == primRef][0]
         orb = Orbit(a, ecc, inc, argp, lan, mo, epoch, prim)
         
         if not a==0:
-            vessels.append(Vessel(name, orb))
+            crafts.append(Craft(name, orb))
     
-    vesselOptions = name_options(vessels)
+    craftOptions = name_options(crafts)
     
-    return jsonpickle.encode(vessels), vesselOptions, vessels[0].name
+    return jsonpickle.encode(crafts), craftOptions, crafts[0].name
 
 @app.callback(
     [Output('startingBody-dropdown','value'),
@@ -2147,17 +2217,17 @@ def create_orbits_from_persistence_file(persistenceFile, system):
      Output('startmo-input','value'),
      Output('startepoch-input','value')],
     [Input('addStartOrbit-button', 'n_clicks')],
-    [State('persistenceVessels-div','children'),
-     State('persistenceVessels-dropdown','value')]
+    [State('persistenceCrafts-div','children'),
+     State('persistenceCrafts-dropdown','value')]
     )
-def add_start_orbit(nClicks, persistenceVessels, addVesselName):
+def add_start_orbit(nClicks, persistenceCrafts, addCraftName):
     # don't update on page load
     if nClicks == 0:
         return dash.no_update
     
-    persistenceVessels = jsonpickle.decode(persistenceVessels)
-    vessel = [vs for vs in persistenceVessels if vs.name == addVesselName][0]
-    orb = vessel.orb
+    persistenceCrafts = jsonpickle.decode(persistenceCrafts)
+    craft = [vs for vs in persistenceCrafts if vs.name == addCraftName][0]
+    orb = craft.orb
     
     return orb.prim.name, orb.a, orb.ecc, orb.inc, orb.argp, orb.lan,       \
            orb.mo, orb.epoch
@@ -2172,17 +2242,17 @@ def add_start_orbit(nClicks, persistenceVessels, addVesselName):
      Output('endmo-input','value'),
      Output('endepoch-input','value')],
     [Input('addEndOrbit-button', 'n_clicks')],
-    [State('persistenceVessels-div','children'),
-     State('persistenceVessels-dropdown','value')]
+    [State('persistenceCrafts-div','children'),
+     State('persistenceCrafts-dropdown','value')]
     )
-def add_end_orbit(nClicks, persistenceVessels, addVesselName):
+def add_end_orbit(nClicks, persistenceCrafts, addCraftName):
     # don't update on page load
     if nClicks == 0:
         return dash.no_update
     
-    persistenceVessels = jsonpickle.decode(persistenceVessels)
-    vessel = [vs for vs in persistenceVessels if vs.name == addVesselName][0]
-    orb = vessel.orb
+    persistenceCrafts = jsonpickle.decode(persistenceCrafts)
+    craft = [vs for vs in persistenceCrafts if vs.name == addCraftName][0]
+    orb = craft.orb
     
     return orb.prim.name, orb.a, orb.ecc, orb.inc, orb.argp, orb.lan,       \
            orb.mo, orb.epoch

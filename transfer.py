@@ -525,30 +525,20 @@ class Transfer:
                           math.sin(thetaEscape + math.pi/2 - phiEscape),    \
                           0]);
             
-            # start orbit basis vectors
-            if not self.cheapStartOrb:
-                Xo, Yo, Zo = self.startOrbit.get_basis_vectors()
-            else:
-                Xo = np.array([1,0,0])
-                Yo = np.array([0,1,0])
-                Zo = np.array([0,0,1])
-            
-            # post-burn position and velocity vectors at periapsis, in the orbit's
+            # pre-burn position and velocity vectors at periapsis, in the orbit's
             # reference bases
-            if not self.cheapStartOrb:
-                roVec = self.startOrbit.from_primary_to_orbit_bases(ro * Xo)
-                voVec = self.startOrbit.from_primary_to_orbit_bases(vo * Yo)
-            else:
-                roVec = ro * Xo
-                voVec = vo * Yo
-            
+            roVec = [ro, 0, 0]
+            voVec = [0, vo, 0]
+    
             # Reperesent the escape velocity in the orbital reference bases
             if not self.cheapStartOrb:
                 vRel = self.startOrbit.from_primary_to_orbit_bases(vRel)
+            else:
+                vRel = self.startOrbit.prim.orb.from_primary_to_orbit_bases(vRel)
             
             # Rotate the ejection trajectory to match the desired escape velocity
-            # An assumption is made that the periapsis lies in the primary body's
-            # x-y plane.
+            # An assumption is made that the periapsis lies in the starting
+            # orbit's x-y plane.
             # First rotate around x-axis to match z-component
             phi = math.atan2(vRel[2], math.sqrt(abs(norm(vEscape)**2 -      \
                                              vEscape[0]**2 - vRel[2]**2)));
@@ -572,6 +562,9 @@ class Transfer:
             if not self.cheapStartOrb:
                 roVec = self.startOrbit.from_orbit_to_primary_bases(roVec)
                 voVec =self.startOrbit.from_orbit_to_primary_bases(voVec)
+            else:
+                roVec = self.startOrbit.prim.orb.from_orbit_to_primary_bases(roVec)
+                voVec =self.startOrbit.prim.orb.from_orbit_to_primary_bases(voVec)
             
             if self.cheapStartOrb:
                 err = 0
@@ -590,9 +583,7 @@ class Transfer:
         
         # Get burn vector
         if self.cheapStartOrb:
-            Zo = np.matmul(R2, np.matmul(R1, Zo))
-            vPark = np.cross(Zo,roVec)
-            vPark = math.sqrt(mu/ro) * vPark/norm(vPark)
+            vPark = math.sqrt(mu/ro) * voVec/norm(voVec)
         else:
             vPark = vParkActual
         
@@ -697,26 +688,17 @@ class Transfer:
                           math.sin(thetaEncounter + math.pi/2 - phiEncounter),  \
                           0]);
             
-            # end orbit basis vectors
-            if not self.cheapEndOrb:
-                Xo, Yo, Zo = self.endOrbit.get_basis_vectors()
-            else:
-                Xo = np.array([1,0,0])
-                Yo = np.array([0,1,0])
-                Zo = np.array([0,0,1])
-            
-            # pre-burn position and velocity vectors at periapsis, in the orbit's
+            # post-burn position and velocity vectors at periapsis, in the orbit's
             # reference bases
-            if not self.cheapEndOrb:
-                roVec = self.endOrbit.from_primary_to_orbit_bases(ro * Xo)
-                voVec = self.endOrbit.from_primary_to_orbit_bases(vo * Yo)
-            else:
-                roVec = ro * Xo
-                voVec = vo * Yo
+            roVec = [ro, 0, 0]
+            voVec = [0, vo, 0]
             
             # Reperesent the encounter velocity in the orbital reference bases
+            # Reperesent the escape velocity in the orbital reference bases
             if not self.cheapEndOrb:
                 vRel = self.endOrbit.from_primary_to_orbit_bases(vRel)
+            else:
+                vRel = self.endOrbit.prim.orb.from_primary_to_orbit_bases(vRel)
             
             # Rotate the insertion trajectory to match the desired escape velocity
             # An assumption is made that the periapsis lies in the primary body's
@@ -744,6 +726,9 @@ class Transfer:
             if not self.cheapEndOrb:
                 roVec = self.endOrbit.from_orbit_to_primary_bases(roVec)
                 voVec = self.endOrbit.from_orbit_to_primary_bases(voVec)
+            else:
+                roVec = self.endOrbit.prim.orb.from_orbit_to_primary_bases(roVec)
+                voVec = self.endOrbit.prim.orb.from_orbit_to_primary_bases(voVec)
             
             if self.cheapEndOrb:
                 err = 0
@@ -762,10 +747,11 @@ class Transfer:
         
         # Get burn vector
         if self.cheapEndOrb:
-            Zo = np.matmul(R2, np.matmul(R1, Zo))
-        
-        vPark = np.cross(Zo,roVec)
-        vPark = math.sqrt(mu/ro) * vPark/norm(vPark)
+            vPark = math.sqrt(mu/ro) * voVec/norm(voVec)
+        else:
+            Zo = self.endOrbit.prim.orb.get_basis_vectors()[2]
+            vPark = np.cross(Zo,roVec)
+            vPark = math.sqrt(mu/ro) * vPark/norm(vPark)
         
         if not self.ignoreInsertion:
             self.insertionDV = vPark - voVec;
