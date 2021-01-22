@@ -1490,8 +1490,8 @@ def update_chosen_tranfser(porkTable, clickData, dateFormat,
     if matchEndMo:
         matchedMo = True
         transfer.match_end_mean_anomaly()
-        if (not transfer.ejectionTrajectory is None) and (not matchEndMo):
-            transfer.adjust_end_orbit_mo()
+        if (not transfer.ejectionTrajectory is None) and (not matchStartMo):
+            transfer.adjust_start_orbit_mo()
     
     if not matchedMo:
         transfer.genetic_refine()
