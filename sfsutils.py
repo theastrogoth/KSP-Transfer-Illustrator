@@ -53,7 +53,7 @@ def parse_savefile(sfs, sfs_is_path=True):
     data = re.sub('(?m)//.*', '', data)
     # removes all tabs and cursor marks
     data = data.replace("    ", "\t")   # remove large numbers of spaces
-    data = data.replace("=", " =")      # ensure there is a space before each =
+    data = data.replace("=", " = ")     # ensure there is a space before each =
     data = data.replace("\t", "")       # remove tabs
     data = data.replace("\r", "")       # remove cursor mark
     # removes % chars (for Eeloo in OPM)
@@ -71,13 +71,14 @@ def parse_savefile(sfs, sfs_is_path=True):
     # value_read contains the start index of the value being read
     value_read = None
     trigger = set(("\n", "}", "="))
+    key_ignore = set(("\n"," ", "{", "}", "="))
     for index, char in enumerate(data[0:-1]):
         # check if the char is one of the chars which leads to an action
         # this is an optimisation only
         if char in trigger:
             if char == "\n":
                 # if the key is empty, continue
-                if key_read[0] == index - 1:
+                if (key_read[0] == index - 1) and (data[key_read[0]] in key_ignore):
                     pass
                 # if next char is an open bracket, save it as a new node
                 else:
@@ -91,11 +92,16 @@ def parse_savefile(sfs, sfs_is_path=True):
                         write_list.append(data[key_read[0]: key_read[1]])
                         write_list.append(data[value_read: index])
                     set_value(out_dict, write_list)
-                key_read = [index + 1, None]
+                if data[index-1] in key_ignore:
+                    key_read = [index + 1, None]
+                else:
+                    key_read = [index + 1, None]
             # pop the end of the 'stack' used to track attribute location
             # when the end of a node is found
             elif char == "}":
                 try: 
+                    if 'vessels2' in in_nodes and 'computer' in in_nodes:
+                        print("")
                     in_nodes.pop()
                 except IndexError:
                     pass

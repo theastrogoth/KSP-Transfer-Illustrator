@@ -349,7 +349,7 @@ class Orbit:
         """
         
         # manually set pi in attempt to improve accuracy with KSP
-        # pi = 3.14159265358979
+        # pi = 3.1415926535898
         pi = math.pi
         
         if self.period is None:
@@ -747,19 +747,15 @@ class Orbit:
         intersectTimes = []
         for body in system:
             params = (self, body.orb, 0)
-            try:
-                res = minimize(fun=distance, x0=[(t+maxTime)/2],            \
+            for x0 in [t, (t+maxTime/2), maxTime]:
+                res = minimize(fun=distance, x0=[x0],                       \
                                args=params, bounds=[(t, maxTime)],          \
                                jac='2-point', method='L-BFGS-B');
-            except ValueError:
-                res = minimize(fun=distance, x0=[(t+maxTime)/2],            \
-                               args=params, bounds=[(t, maxTime)],          \
-                               jac='2-point', method='L-BFGS-B');
-            if res.fun < body.soi:
-                intersects.append(body)
-                intersectTimes.append(res.x[0])
-                maxTime = res.x[0]
-        
+                if res.fun < body.soi:
+                    intersects.append(body)
+                    intersectTimes.append(res.x[0])
+                    maxTime = res.x[0]
+                    break
         if len(intersects)>0:
             encBody = intersects[-1]
             maxTime = intersectTimes[-1]
